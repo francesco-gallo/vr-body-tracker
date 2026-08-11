@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.VRBodyOsc" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#0B6E4F</item>
+        <item name="colorPrimaryVariant">#09543D</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#F2A541</item>
+        <item name="colorOnSecondary">#1A1A1A</item>
+        <item name="android:statusBarColor" tools:targetApi="l">#000000</item>
+    </style>
+</resources>

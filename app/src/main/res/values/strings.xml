@@ -1,0 +1,52 @@
+<resources>
+    <string name="app_name">VR Body OSC</string>
+    <string name="title">Body Tracking to OSC</string>
+    <string name="ip_hint">Destination IP</string>
+    <string name="port_hint">Destination Port</string>
+    <string name="prefix_hint">OSC Prefix (ex: /tracking/pose)</string>
+    <string name="height_label">Height (m)</string>
+    <string name="invert_camera_switch">Invert camera view</string>
+
+    <string name="default_ip">192.168.1.10</string>
+    <string name="default_port">9000</string>
+    <string name="default_prefix">/tracking/pose</string>
+    <string name="default_fps">20</string>
+    <string name="default_height_m">1.70</string>
+
+    <string name="start_stream">Start Stream</string>
+    <string name="stop_stream">Stop Stream</string>
+    <string name="front_camera_switch">Use front camera</string>
+    <string name="osc_bundle_switch">Bundle OSC</string>
+    <string name="fps_cap_label">FPS cap</string>
+    <string name="smoothing_label">Smoothing</string>
+    <string name="smoothing_label_value">Smoothing: %1$d%%</string>
+    <string name="invert_x">Invert X</string>
+    <string name="invert_y">Invert Y</string>
+    <string name="invert_z">Invert Z</string>
+    <string name="calibrate_button">Calibrate Neutral Pose</string>
+    <string name="camera_front">front</string>
+    <string name="camera_back">back</string>
+    <string name="mode_vrchat_trackers">vrchat-trackers</string>
+    <string name="mode_raw_landmarks">raw-landmarks</string>
+
+    <string name="status_idle">Idle. Configure endpoint, then start stream.</string>
+    <string name="status_invalid_endpoint">Invalid host or port.</string>
+    <string name="status_camera_permission_needed">Camera permission is required.</string>
+    <string name="status_streaming">Streaming to %1$s:%2$d</string>
+    <string name="status_streaming_joints">Streaming to %1$s:%2$d | joints: %3$d | camera: %4$s | mode: %5$s</string>
+    <string name="status_calibrate_pending">Calibration armed. Hold still for next frame.</string>
+    <string name="status_calibrated">Calibration applied.</string>
+    <string name="status_mode_vrchat_trackers">VRChat trackers mode enabled.</string>
+    <string name="debug_waiting">Debug: waiting for stream...</string>
+    <string name="show_ui">Show UI</string>
+    <string name="hide_ui">Hide UI</string>
+    <string name="reset_button">Reset config</string>
+    <string name="last_build_label">Last build: %1$s</string>
+    <string name="body_part_toggle_label">Send body parts</string>
+    <string name="body_head">Head</string>
+    <string name="body_torso">Torso</string>
+    <string name="body_left_arm">Left arm</string>
+    <string name="body_right_arm">Right arm</string>
+    <string name="body_left_leg">Left leg</string>
+    <string name="body_right_leg">Right leg</string>
+</resources>

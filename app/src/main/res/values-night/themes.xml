@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.VRBodyOsc" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#2FA57D</item>
+        <item name="colorPrimaryVariant">#0B6E4F</item>
+        <item name="colorOnPrimary">#0F1112</item>
+        <item name="colorSecondary">#F2A541</item>
+        <item name="colorOnSecondary">#101010</item>
+    </style>
+</resources>
