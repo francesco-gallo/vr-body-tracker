@@ -13,7 +13,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <com.vrproject.bodyosc.JointOverlayView
+    <com.vrproject.bodytracker.JointOverlayView
         android:id="@+id/jointOverlay"
         android:layout_width="0dp"
         android:layout_height="0dp"

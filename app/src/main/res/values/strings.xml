@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">VR Body OSC</string>
+    <string name="app_name">VR Body Tracker</string>
     <string name="title">Body Tracking to OSC</string>
     <string name="ip_hint">Destination IP</string>
     <string name="port_hint">Destination Port</string>

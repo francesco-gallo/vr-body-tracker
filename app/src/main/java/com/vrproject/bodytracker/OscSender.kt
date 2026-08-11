@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.VRBodyOsc" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.VRBodyTracker" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">#0B6E4F</item>
         <item name="colorPrimaryVariant">#09543D</item>
         <item name="colorOnPrimary">#FFFFFF</item>

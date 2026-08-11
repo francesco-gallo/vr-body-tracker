@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -20,7 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doOnTextChanged
-import com.vrproject.bodyosc.databinding.ActivityMainBinding
+import com.vrproject.bodytracker.databinding.ActivityMainBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
-    private val logTag = "BodyOscDebug"
+    private val logTag = "BodyTrackerDebug"
     private lateinit var binding: ActivityMainBinding
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()

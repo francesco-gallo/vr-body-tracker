@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -50,9 +50,12 @@ class PoseTracker(
             return
         }
 
-        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-        val width = imageProxy.width.toFloat().coerceAtLeast(1f)
-        val height = imageProxy.height.toFloat().coerceAtLeast(1f)
+        val rotation = imageProxy.imageInfo.rotationDegrees
+        val image = InputImage.fromMediaImage(mediaImage, rotation)
+        
+        val isRotated = rotation == 90 || rotation == 270
+        val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
+        val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
 
         detector.process(image)
             .addOnSuccessListener { pose ->

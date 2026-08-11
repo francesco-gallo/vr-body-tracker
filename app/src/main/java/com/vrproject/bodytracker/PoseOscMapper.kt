@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import kotlin.math.abs
 import kotlin.math.atan2

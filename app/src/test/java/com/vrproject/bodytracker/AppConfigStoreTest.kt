@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

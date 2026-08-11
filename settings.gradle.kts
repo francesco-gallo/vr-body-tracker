@@ -1,3 +1,6 @@
+@file:Suppress("UnstableApiUsage")
+import org.gradle.api.initialization.resolve.RepositoriesMode
+
 pluginManagement {
     repositories {
         google()
@@ -14,5 +17,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VRBodyOsc"
+rootProject.name = "VRBodyTracker"
 include(":app")

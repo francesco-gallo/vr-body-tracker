@@ -1,4 +1,4 @@
-package com.vrproject.bodyosc
+package com.vrproject.bodytracker
 
 import android.content.Context
 import android.graphics.Canvas
@@ -6,7 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.min
+import kotlin.math.max
 
 class JointOverlayView @JvmOverloads constructor(
     context: Context,
@@ -116,7 +116,8 @@ class JointOverlayView @JvmOverloads constructor(
             return RenderBounds(0f, 0f, width.toFloat(), height.toFloat())
         }
 
-        val scale = min(width.toFloat() / sourceWidth.toFloat(), height.toFloat() / sourceHeight.toFloat())
+        // Use MAX scale for FILL_CENTER behavior (matches default PreviewView)
+        val scale = max(width.toFloat() / sourceWidth.toFloat(), height.toFloat() / sourceHeight.toFloat())
         val drawWidth = sourceWidth * scale
         val drawHeight = sourceHeight * scale
         val offsetX = (width - drawWidth) / 2f
