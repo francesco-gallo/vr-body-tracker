@@ -52,8 +52,8 @@ class MainActivity : AppCompatActivity() {
     private val poseProcessor = PoseProcessor()
     private val oscSender = OscSender()
 
-    // Server Web MJPEG integrato
     private var mjpegServer: MjpegServer? = null
+    private var lastWebFrameTimeMs = 0L
 
     @Volatile private var streamEnabled = false
     private var lastStatusUpdateMs = 0L
@@ -63,13 +63,11 @@ class MainActivity : AppCompatActivity() {
     private var sendFps = 0f
     private var sendJob: Job? = null
 
-    // Misurazione FPS fotocamera
     private var cameraFrameCount = 0
     private var lastCameraFpsTimeMs = 0L
     private var currentCameraFps = 0f
     private var activeCameraLevelName = "Checking..."
 
-    // Cached configuration values
     @Volatile private var cachedHost = ""
     @Volatile private var cachedPort: Int? = null
     @Volatile private var cachedHeightMeters = 1.70f
@@ -98,30 +96,33 @@ class MainActivity : AppCompatActivity() {
 
         savedConfig = AppConfigStore.load(this)
 
-        // Avvio asincrono del Web Server MJPEG sulla porta 8080
         startMjpegServer()
 
-        poseTracker = PoseTracker { rawFrame, rawBitmap, rotationDegrees ->
+        poseTracker = PoseTracker(
+            onCheckShouldCaptureBitmap = { mjpegServer?.hasClients() == true }
+        ) { rawFrame, rawBitmap, rotationDegrees ->
             updateCameraCaptureFps(rawFrame.timestampMs)
 
-            // 1. Processamento frame (Smoothing EMA + Calibrazione)
             val processedFrame = processFrame(rawFrame)
-
-            // 2. Aggiornamento Overlay Schermo con il frame processato
             updateOverlay(processedFrame)
 
-            // 3. Generazione e invio dello stream Web con i dati PROCESSATI
-            if (rawBitmap != null) {
-                appScope.launch(Dispatchers.IO) {
+            // Web Stream Rate-Limiting: Limit JPEG compression to ~15 FPS and ONLY when a browser client is connected
+            val now = System.currentTimeMillis()
+            if (rawBitmap != null && mjpegServer?.hasClients() == true && (now - lastWebFrameTimeMs > 66)) {
+                lastWebFrameTimeMs = now
+                appScope.launch(Dispatchers.Default) {
                     val processedJpeg = PoseTracker.renderProcessedWebFrame(
                         rawBitmap,
                         processedFrame,
                         rotationDegrees
                     )
+                    rawBitmap.recycle() // Recycle native bitmap memory immediately
                     if (processedJpeg != null) {
                         mjpegServer?.updateFrame(processedJpeg)
                     }
                 }
+            } else {
+                rawBitmap?.recycle()
             }
 
             if (!streamEnabled) {
@@ -181,9 +182,7 @@ class MainActivity : AppCompatActivity() {
                 mjpegServer = MjpegServer(8080).apply {
                     start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
                 }
-            } catch (_: Exception) {
-                // Gestione porta già in uso o errore avvio server
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -525,7 +524,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun maybeUpdateDebug() {
-        // Debug text nascosto
+        // Debug text hidden
     }
 
     private fun updateOverlay(frame: PoseFrame) {

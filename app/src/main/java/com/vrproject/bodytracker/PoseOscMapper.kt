@@ -1,13 +1,14 @@
 package com.vrproject.bodytracker
 
 import kotlin.math.abs
+import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.sqrt
 
 object PoseOscMapper {
 
-    private var lastTorsoYaw = 0f
+    private var lastTorsoRot = Vec3(0f, 0f, 0f)
     private val lastRotations = HashMap<Int, Vec3>()
     private val reusableMessageList = ArrayList<OscMessageData>(20)
 
@@ -36,9 +37,7 @@ object PoseOscMapper {
         val leftShoulder = findJoint(joints, "left_shoulder")
         val rightShoulder = findJoint(joints, "right_shoulder")
 
-        // Usa direttamente la testa singola "head"
         val head = findJoint(joints, "head")
-
         val hip = averageJoint("hip_mid", leftHip, rightHip)
         val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
         val leftFoot = findJoint(joints, "left_ankle")
@@ -55,20 +54,19 @@ object PoseOscMapper {
         val safeTargetHeight = estimatedHeightMeters.coerceIn(1.0f, 2.5f)
         val metersPerNorm = safeTargetHeight / safeObserved
 
-        val torsoYaw = estimateTorsoYawDegrees(leftShoulder, rightShoulder, leftHip, rightHip)
-
-        val torsoRot = Vec3(0f, torsoYaw, 0f)
-        val headRot = Vec3(0f, torsoYaw, 0f)
-        val leftFootRot = rotationFromDirection(3, leftKnee, leftFoot, defaultYaw = torsoYaw)
-        val rightFootRot = rotationFromDirection(4, rightKnee, rightFoot, defaultYaw = torsoYaw)
-        val leftKneeRot = rotationFromDirection(5, hip, leftKnee, defaultYaw = torsoYaw)
-        val rightKneeRot = rotationFromDirection(6, hip, rightKnee, defaultYaw = torsoYaw)
-        val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultYaw = torsoYaw)
-        val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultYaw = torsoYaw)
-
         val xMultiplier = if (isFrontCamera) -1f else 1f
 
-        // Head
+        val torsoRot = calculateTorsoOrientation(leftShoulder, rightShoulder, leftHip, rightHip, isFrontCamera)
+        val headRot = torsoRot
+
+        val leftFootRot = rotationFromDirection(3, leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightFootRot = rotationFromDirection(4, rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val leftKneeRot = rotationFromDirection(5, hip, leftKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightKneeRot = rotationFromDirection(6, hip, rightKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+
+        // Head Tracker
         appendTracker(reusableMessageList, 0, head, headRot, rootAnchor, metersPerNorm, xMultiplier)
         if (head != null) {
             val headPos = toTrackingVector(head, rootAnchor, metersPerNorm, xMultiplier)
@@ -86,6 +84,7 @@ object PoseOscMapper {
             )
         }
 
+        // Tracker VRChat
         appendTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
         appendTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
         appendTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)
@@ -131,46 +130,75 @@ object PoseOscMapper {
         )
     }
 
-    private fun estimateTorsoYawDegrees(
+    private fun calculateTorsoOrientation(
         leftShoulder: JointSample?,
         rightShoulder: JointSample?,
         leftHip: JointSample?,
-        rightHip: JointSample?
-    ): Float {
-        val shoulderYaw = estimateYawFromLeftRight(leftShoulder, rightShoulder)
-        val hipYaw = estimateYawFromLeftRight(leftHip, rightHip)
-
-        val rawYaw = when {
-            shoulderYaw != null && hipYaw != null -> (shoulderYaw + hipYaw) * 0.5f
-            shoulderYaw != null -> shoulderYaw
-            hipYaw != null -> hipYaw
-            else -> lastTorsoYaw
+        rightHip: JointSample?,
+        isFrontCamera: Boolean
+    ): Vec3 {
+        if (leftShoulder == null || rightShoulder == null || leftHip == null || rightHip == null) {
+            return lastTorsoRot
         }
 
-        val smoothedYaw = lerpAngle(lastTorsoYaw, rawYaw, 0.25f)
-        lastTorsoYaw = smoothedYaw
-        return smoothedYaw
-    }
+        var rx = rightShoulder.x - leftShoulder.x
+        var ry = -(rightShoulder.y - leftShoulder.y)
+        var rz = rightShoulder.z - leftShoulder.z
 
-    private fun estimateYawFromLeftRight(left: JointSample?, right: JointSample?): Float? {
-        if (left == null || right == null) return null
+        val hipMidX = (leftHip.x + rightHip.x) * 0.5f
+        val hipMidY = (leftHip.y + rightHip.y) * 0.5f
+        val hipMidZ = (leftHip.z + rightHip.z) * 0.5f
 
-        val sideX = right.x - left.x
-        val sideZ = right.z - left.z
-        if (abs(sideX) < 0.0001f && abs(sideZ) < 0.0001f) return null
+        val shoulderMidX = (leftShoulder.x + rightShoulder.x) * 0.5f
+        val shoulderMidY = (leftShoulder.y + rightShoulder.y) * 0.5f
+        val shoulderMidZ = (leftShoulder.z + rightShoulder.z) * 0.5f
 
-        val forwardX = -sideZ
-        val forwardZ = sideX
-        return radiansToDegrees(atan2(forwardX, forwardZ))
+        var ux = shoulderMidX - hipMidX
+        var uy = -(shoulderMidY - hipMidY)
+        var uz = shoulderMidZ - hipMidZ
+
+        val uLen = sqrt(ux * ux + uy * uy + uz * uz)
+        if (uLen < 0.001f) return lastTorsoRot
+        ux /= uLen; uy /= uLen; uz /= uLen
+
+        val rLen = sqrt(rx * rx + ry * ry + rz * rz)
+        if (rLen < 0.001f) return lastTorsoRot
+        rx /= rLen; ry /= rLen; rz /= rLen
+
+        var fx = uy * rz - uz * ry
+        var fy = uz * rx - ux * rz
+        var fz = ux * ry - uy * rx
+
+        val fLen = sqrt(fx * fx + fy * fy + fz * fz)
+        if (fLen < 0.001f) return lastTorsoRot
+        fx /= fLen; fy /= fLen; fz /= fLen
+
+        val rawPitch = radiansToDegrees(asin((-fy).coerceIn(-1f, 1f)))
+        var rawYaw = radiansToDegrees(atan2(fx, fz))
+        var rawRoll = radiansToDegrees(atan2(rx, ry))
+
+        if (isFrontCamera) {
+            rawYaw = -rawYaw
+            rawRoll = -rawRoll
+        }
+
+        val smoothedRot = Vec3(
+            x = lerpAngle(lastTorsoRot.x, rawPitch, 0.25f),
+            y = lerpAngle(lastTorsoRot.y, rawYaw, 0.25f),
+            z = lerpAngle(lastTorsoRot.z, rawRoll, 0.25f)
+        )
+        lastTorsoRot = smoothedRot
+        return smoothedRot
     }
 
     private fun rotationFromDirection(
         trackerId: Int,
         start: JointSample?,
         end: JointSample?,
-        defaultYaw: Float
+        defaultRot: Vec3,
+        isFrontCamera: Boolean
     ): Vec3 {
-        val lastRot = lastRotations[trackerId] ?: Vec3(0f, defaultYaw, 0f)
+        val lastRot = lastRotations[trackerId] ?: defaultRot
 
         if (start == null || end == null || start.visibility < 0.4f || end.visibility < 0.4f) {
             return lastRot
@@ -178,20 +206,25 @@ object PoseOscMapper {
 
         val dx = end.x - start.x
         val dy = -(end.y - start.y)
-        val dz = end.z - start.z
+        val dz = (end.z - start.z) / 1000f
 
-        val horizontal = sqrt((dx * dx) + (dz * dz))
-        if (horizontal < 0.01f) {
+        val horizontal = sqrt(dx * dx + dz * dz)
+        if (horizontal < 0.001f && abs(dy) < 0.001f) {
             return lastRot
         }
 
-        val rawYaw = radiansToDegrees(atan2(dx, dz))
+        var rawYaw = radiansToDegrees(atan2(dx, dz))
         val rawPitch = radiansToDegrees(atan2(dy, horizontal))
 
-        val newYaw = lerpAngle(lastRot.y, rawYaw, 0.3f)
-        val newPitch = lerpAngle(lastRot.x, rawPitch, 0.3f)
+        if (isFrontCamera) {
+            rawYaw = -rawYaw
+        }
 
-        val smoothedVec = Vec3(x = newPitch, y = newYaw, z = 0f)
+        val smoothedVec = Vec3(
+            x = lerpAngle(lastRot.x, rawPitch, 0.3f),
+            y = lerpAngle(lastRot.y, rawYaw, 0.3f),
+            z = lerpAngle(lastRot.z, defaultRot.z, 0.3f)
+        )
         lastRotations[trackerId] = smoothedVec
 
         return smoothedVec

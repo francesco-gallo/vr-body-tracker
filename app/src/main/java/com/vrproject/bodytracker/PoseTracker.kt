@@ -35,6 +35,7 @@ data class PoseFrame(
 )
 
 class PoseTracker(
+    private val onCheckShouldCaptureBitmap: (() -> Boolean)? = null,
     private val onFrame: (PoseFrame, Bitmap?, Int) -> Unit
 ) : ImageAnalysis.Analyzer {
 
@@ -67,11 +68,15 @@ class PoseTracker(
         val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
         val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
 
-        val rawBitmap = try {
-            imageProxy.toBitmap()
-        } catch (_: Exception) {
-            null
-        }
+        // Converte in Bitmap solo se c'è un browser connesso al server web
+        val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
+        val rawBitmap = if (shouldCaptureBitmap) {
+            try {
+                imageProxy.toBitmap()
+            } catch (_: Exception) {
+                null
+            }
+        } else null
 
         detector.process(image)
             .addOnSuccessListener { pose ->
@@ -197,7 +202,6 @@ class PoseTracker(
             PoseLandmark.RIGHT_ANKLE to "right_ankle"
         )
 
-        // Utility statica per generare lo stream web dai Dati PROCESSATI (smoothed)
         fun renderProcessedWebFrame(
             srcBitmap: Bitmap,
             processedFrame: PoseFrame,
@@ -229,7 +233,6 @@ class PoseTracker(
 
                 val byName = processedFrame.joints.associateBy { it.name }.toMutableMap()
 
-                // Punto sintetico del collo
                 val ls = byName["left_shoulder"]
                 val rs = byName["right_shoulder"]
                 if (ls != null && rs != null) {
@@ -242,7 +245,6 @@ class PoseTracker(
                     )
                 }
 
-                // 1. Disegna le linee dello scheletro effettivo
                 for ((a, b) in BONES) {
                     val ja = byName[a]
                     val jb = byName[b]
@@ -251,7 +253,6 @@ class PoseTracker(
                     }
                 }
 
-                // 2. Disegna i Joint effettivi dopo smoothing
                 val axisLength = 25f
                 for (joint in processedFrame.joints) {
                     if (joint.visibility > 0.25f) {
@@ -279,12 +280,10 @@ class PoseTracker(
         private fun getZColor(z: Float): Int {
             val normalizedZ = ((z + 100f) / 200f).coerceIn(0f, 1f)
             val red = (255 * (1f - normalizedZ)).toInt()
-            val green = (200 * (1f - abs(normalizedZ - 0.5f) * 2)).toInt()
+            val green = (200 * (1f - kotlin.math.abs(normalizedZ - 0.5f) * 2)).toInt()
             val blue = (255 * normalizedZ).toInt()
             return Color.rgb(red, green, blue)
         }
-
-        private fun abs(v: Float) = if (v < 0) -v else v
 
         private val BONES = listOf(
             "head" to "neck",
