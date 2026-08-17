@@ -2,8 +2,10 @@ package com.vrproject.bodytracker
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.os.Bundle
-import android.util.Log
+import android.util.Range
 import android.util.Size
 import android.view.View
 import android.widget.SeekBar
@@ -14,10 +16,13 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.AspectRatio
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -30,8 +35,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
+
 class MainActivity : AppCompatActivity() {
     private val logTag = "BodyTrackerDebug"
     private lateinit var binding: ActivityMainBinding
@@ -53,16 +57,20 @@ class MainActivity : AppCompatActivity() {
     private var sendFps = 0f
     private var sendJob: Job? = null
 
+    // Misurazione FPS fotocamera
+    private var cameraFrameCount = 0
+    private var lastCameraFpsTimeMs = 0L
+    private var currentCameraFps = 0f
+    private var activeCameraLevelName = "Checking..."
+
     // Cached configuration values
     @Volatile private var cachedHost = ""
     @Volatile private var cachedPort: Int? = null
-    @Volatile private var cachedPrefix = "/tracking/pose"
     @Volatile private var cachedHeightMeters = 1.70f
     @Volatile private var cachedFps = 60
 
     private var useFrontCamera = false
     private var invertCameraView = false
-    private var vrchatModeEnabled = true
     private var pendingCalibration = false
     private var uiVisible = true
     private lateinit var savedConfig: AppConfig
@@ -85,6 +93,8 @@ class MainActivity : AppCompatActivity() {
         savedConfig = AppConfigStore.load(this)
 
         poseTracker = PoseTracker { frame ->
+            updateCameraCaptureFps(frame.timestampMs)
+
             val processedFrame = processFrame(frame)
             updateOverlay(processedFrame)
 
@@ -288,7 +298,6 @@ class MainActivity : AppCompatActivity() {
     private fun populateUiFromConfig(config: AppConfig) {
         binding.ipEditText.setText(config.ip)
         binding.portEditText.setText(config.port.toString())
-        vrchatModeEnabled = true
         binding.heightEditText.setText(config.heightMeters.toString())
         useFrontCamera = config.frontCamera
         binding.frontCameraSwitch.isChecked = config.frontCamera
@@ -355,7 +364,6 @@ class MainActivity : AppCompatActivity() {
             it.surfaceProvider = binding.previewView.surfaceProvider
         }
 
-        // Configurazione moderna per la risoluzione
         val resolutionSelector = ResolutionSelector.Builder()
             .setResolutionStrategy(
                 ResolutionStrategy(
@@ -365,17 +373,63 @@ class MainActivity : AppCompatActivity() {
             )
             .build()
 
-        val analysis = ImageAnalysis.Builder()
+        // Usiamo Camera2Interop per richiedere 60 FPS alla fotocamera
+        val analysisBuilder = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setResolutionSelector(resolutionSelector)
-            .build()
-            .also {
-                it.setAnalyzer(cameraExecutor, poseTracker)
-            }
+
+        val camera2Config = Camera2Interop.Extender(analysisBuilder)
+        camera2Config.setCaptureRequestOption(
+            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+            Range(60, 60)
+        )
+
+        val analysis = analysisBuilder.build().also {
+            it.setAnalyzer(cameraExecutor, poseTracker)
+        }
 
         provider.unbindAll()
         val selector = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-        provider.bindToLifecycle(this, selector, preview, analysis)
+        val camera = provider.bindToLifecycle(this, selector, preview, analysis)
+
+        val camera2Info = Camera2CameraInfo.from(camera.cameraInfo)
+        val hardwareLevel = camera2Info.getCameraCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+        activeCameraLevelName = when (hardwareLevel) {
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
+            else -> "UNKNOWN ($hardwareLevel)"
+        }
+
+        updateCameraInfoUi()
+    }
+
+    private fun updateCameraCaptureFps(nowMs: Long) {
+        if (lastCameraFpsTimeMs == 0L) {
+            lastCameraFpsTimeMs = nowMs
+        }
+        cameraFrameCount++
+
+        val elapsed = nowMs - lastCameraFpsTimeMs
+        if (elapsed >= 1000L) {
+            currentCameraFps = (cameraFrameCount * 1000f) / elapsed.toFloat()
+            cameraFrameCount = 0
+            lastCameraFpsTimeMs = nowMs
+
+            runOnUiThread {
+                updateCameraInfoUi()
+            }
+        }
+    }
+
+    private fun updateCameraInfoUi() {
+        val fpsText = if (currentCameraFps > 0f) {
+            String.format(Locale.US, "%.1f Hz", currentCameraFps)
+        } else {
+            "Measuring..."
+        }
+        binding.cameraLevelText.text = "Camera Level: $activeCameraLevelName | Refresh Rate: $fpsText"
     }
 
     private fun processFrame(frame: PoseFrame): PoseFrame {
@@ -389,10 +443,7 @@ class MainActivity : AppCompatActivity() {
 
         val alpha = (binding.smoothingSeekBar.progress / 100f).coerceIn(0f, 0.95f)
         val config = StreamConfig(
-            smoothingAlpha = alpha,
-            invertX = false,
-            invertY = false,
-            invertZ = false
+            smoothingAlpha = alpha
         )
         return poseProcessor.process(frame, config)
     }
@@ -478,17 +529,9 @@ class MainActivity : AppCompatActivity() {
             val host = cachedHost
             val port = cachedPort ?: 0
             val cameraName = if (useFrontCamera) getString(R.string.camera_front) else getString(R.string.camera_back)
-            val mode = if (vrchatModeEnabled) getString(R.string.mode_vrchat_trackers) else getString(R.string.mode_raw_landmarks)
 
             val statusText = if (coverage.complete) {
-                getString(
-                    R.string.status_streaming_joints,
-                    host,
-                    port,
-                    frame.joints.size,
-                    cameraName,
-                    mode
-                )
+                "Streaming ${frame.joints.size} joints to $host:$port ($cameraName)"
             } else {
                 "Partial body detected: ${coverage.visible}/${coverage.required} major joints visible"
             }
