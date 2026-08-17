@@ -1,14 +1,12 @@
 package com.vrproject.bodytracker
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.YuvImage
+import androidx.annotation.OptIn
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -48,6 +46,7 @@ class PoseTracker(
         PoseDetection.getClient(options)
     }
 
+    @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
         if (!isProcessing.compareAndSet(false, true)) {
             imageProxy.close()
@@ -68,7 +67,7 @@ class PoseTracker(
         val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
         val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
 
-        // Converte in Bitmap solo se c'è un browser connesso al server web
+        // Estrazione sicura usando la conversione nativa di CameraX toBitmap()
         val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
         val rawBitmap = if (shouldCaptureBitmap) {
             try {
@@ -83,6 +82,9 @@ class PoseTracker(
                 val poseFrame = convertPose(pose, width, height)
                 onFrame(poseFrame, rawBitmap, rotationDegrees)
             }
+            .addOnFailureListener {
+                rawBitmap?.recycle()
+            }
             .addOnCompleteListener {
                 isProcessing.set(false)
                 imageProxy.close()
@@ -91,28 +93,6 @@ class PoseTracker(
 
     fun close() {
         detector.close()
-    }
-
-    private fun ImageProxy.toBitmap(): Bitmap? {
-        val yBuffer = planes[0].buffer
-        val uBuffer = planes[1].buffer
-        val vBuffer = planes[2].buffer
-
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-
-        val nv21 = ByteArray(ySize + uSize + vSize)
-
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
-
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, this.width, this.height, null)
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, this.width, this.height), 100, out)
-        val imageBytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
     }
 
     private fun convertPose(pose: Pose, width: Float, height: Float): PoseFrame {
@@ -217,6 +197,10 @@ class PoseTracker(
                 )
 
                 val mutableBitmap = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                if (rotatedBitmap != srcBitmap) {
+                    rotatedBitmap.recycle()
+                }
+
                 val canvas = Canvas(mutableBitmap)
                 val w = mutableBitmap.width.toFloat()
                 val h = mutableBitmap.height.toFloat()
@@ -270,7 +254,8 @@ class PoseTracker(
                 }
 
                 val out = ByteArrayOutputStream()
-                mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 60, out)
+                mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
+                mutableBitmap.recycle()
                 out.toByteArray()
             } catch (_: Exception) {
                 null

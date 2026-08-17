@@ -166,8 +166,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        cameraProvider?.unbindAll()
+    }
     override fun onDestroy() {
         super.onDestroy()
+        cameraProvider?.unbindAll()
         cameraExecutor.shutdown()
         poseTracker.close()
         oscSender.close()
@@ -175,7 +180,6 @@ class MainActivity : AppCompatActivity() {
         poseProcessor.clear()
         stopMjpegServer()
     }
-
     private fun startMjpegServer() {
         appScope.launch(Dispatchers.IO) {
             try {
@@ -583,4 +587,5 @@ class MainActivity : AppCompatActivity() {
             binding.statusText.text = statusText
         }
     }
+
 }

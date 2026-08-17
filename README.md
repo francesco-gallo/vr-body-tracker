@@ -1,114 +1,72 @@
-# VR Body OSC (Android)
+# VR Body Tracker (OSC)
 
-Android app that:
+VR Body Tracker is an Android application designed for real-time 3D pose estimation and streaming to VR environments (like VRChat) via the Open Sound Control (OSC) protocol. It leverages Google ML Kit's on-device pose detection to provide a low-latency, cable-free Full Body Tracking (FBT) alternative using just your smartphone camera.
+Almost all of this has been vibe-coded (read as: totally made with AI. This readme included.)
 
-- Captures body landmarks from the phone camera using ML Kit Pose Detection.
-- Streams VRChat OSC Trackers API messages over UDP by default.
-- Lets you configure destination IP, port, output mode, and head alignment in-app.
-- Adds runtime controls for camera selection, FPS cap, smoothing, calibration, axis inversion, and OSC bundle mode.
+## 🚀 Features
 
-## What this sends
+-   **On-Device AI Tracking**: Powered by ML Kit Pose Detection (beta5) for robust 3D skeletal tracking without external servers.
+-   **VRChat Native Integration**: Direct mapping to VRChat's `/tracking/trackers` schema, including Head, Hip, Chest, Elbows, Knees, and Feet.
+-   **OSC Networking**: High-performance UDP streaming with support for **OSC Bundles** to minimize network packets.
+-   **Neutral Pose Calibration**: One-tap T-Pose/I-Pose calibration to establish user-specific skeletal offsets.
+-   **Advanced Signal Processing**:
+    -   **Exponential Moving Average (EMA)** smoothing to eliminate jitter.
+    -   **Dynamic Scaling**: Automatic height estimation and world-space mapping based on user input.
+-   **Debug & Visualization**:
+    -   Real-time skeleton overlay with joint axis visualization.
+    -   **MJPEG Web Server**: Integrated server (port 8080) providing a remote MJPEG stream of the tracking view for monitoring on a PC.
+-   **Camera Control**: 
+    -   Support for 60 FPS capture via Camera2 interoperability.
+    -   Front/Back camera toggle with optional horizontal mirroring.
+-   **Persistent Config**: Automatically saves IP, port, height, and smoothing settings.
 
-Default mode is VRChat trackers API:
+## 📱 Hardware & Software Requirements
 
-- `/tracking/trackers/1/position` + `/tracking/trackers/1/rotation` (hip)
-- `/tracking/trackers/2/position` + `/tracking/trackers/2/rotation` (chest)
-- `/tracking/trackers/3/position` + `/tracking/trackers/3/rotation` (left foot)
-- `/tracking/trackers/4/position` + `/tracking/trackers/4/rotation` (right foot)
-- `/tracking/trackers/5/position` + `/tracking/trackers/5/rotation` (left knee)
-- `/tracking/trackers/6/position` + `/tracking/trackers/6/rotation` (right knee)
-- `/tracking/trackers/7/position` + `/tracking/trackers/7/rotation` (left elbow)
-- `/tracking/trackers/8/position` + `/tracking/trackers/8/rotation` (right elbow)
+-   **Android Version**: API 26 (Android 8.0) or higher.
+-   **Camera**: Recommended device with "FULL" or "LEVEL_3" hardware support for optimal frame rates.
+-   **Network**: Smartphone and VR headset/PC must be on the same local network.
 
-Optional head alignment:
+## 🛠️ OSC Tracker Mapping
 
-- `/tracking/trackers/head/position`
-- `/tracking/trackers/head/rotation`
+The following trackers are transmitted to the `/tracking/trackers/{id}/` path:
 
-Each message carries a Vector3: 3 floats (X, Y, Z).
+| ID | Body Part | OSC Address |
+| :--- | :--- | :--- |
+| 0 | Head | `head` (Position & Rotation) |
+| 1 | Hip | `1` (Position & Rotation) |
+| 2 | Chest | `2` (Position & Rotation) |
+| 3 | Left Foot | `3` (Position & Rotation) |
+| 4 | Right Foot | `4` (Position & Rotation) |
+| 5 | Left Knee | `5` (Position & Rotation) |
+| 6 | Right Knee | `6` (Position & Rotation) |
+| 7 | Left Elbow | `7` (Position & Rotation) |
+| 8 | Right Elbow | `8` (Position & Rotation) |
 
-Raw landmarks mode is also available:
+## 📖 How to Use
 
-For each detected joint, the app sends one OSC message:
+1.  **Launch & Permissions**: Grant camera and internet permissions.
+2.  **Configuration**:
+    *   **IP Address**: Enter your PC or Quest's local IP.
+    *   **Port**: Default is `9000` for VRChat.
+    *   **User Height**: Enter your height in meters for accurate tracker placement.
+3.  **Calibration**:
+    *   Tap **Calibrate Neutral Pose**.
+    *   Wait for the 5-second countdown.
+    *   Stand in a neutral pose (T-Pose or I-Pose) facing the camera.
+4.  **Streaming**:
+    *   Tap **Start Stream**.
+    *   Enable OSC in VRChat (Action Menu > Expressions > Options > OSC > Enabled).
+5.  **Remote Monitoring**: Access `http://[PHONE_IP]:8080` in a web browser to view the processed MJPEG stream.
 
-- Address: `/tracking/pose/<joint_name>` (or your custom prefix)
-- Arguments: `x`, `y`, `z`, `visibility` (all floats)
+## 🏗️ Project Structure
 
-It also sends:
+-   `PoseTracker.kt`: Orchestrates ML Kit analysis and frame conversion.
+-   `PoseOscMapper.kt`: Implements the 3D math for coordinate normalization and VRChat protocol mapping.
+-   `PoseProcessing.kt`: Handles EMA smoothing and calibration offset logic.
+-   `OscSender.kt`: Encodes and transmits raw OSC messages and bundles.
+-   `MjpegServer.kt`: A `NanoHTTPD` based server for remote skeletal visualization.
+-   `JointOverlayView.kt`: Custom UI component for local skeleton drawing.
 
-- Address: `/tracking/pose/frame_time_ms`
-- Argument: timestamp in milliseconds as an int
+## 📄 License
 
-When bundle mode is enabled, these are packed into one OSC bundle per frame.
-
-Coordinates:
-
-- `x` and `y` are normalized to `[0, 1]` from camera frame size.
-- `z` comes from ML Kit `position3D.z`.
-
-## Open and run
-
-1. Open this folder in Android Studio.
-2. Let Gradle sync.
-3. If you need command-line wrapper files, install Gradle CLI and run:
-   - `gradle wrapper`
-4. Run on a real Android device (camera permission is required).
-
-## VRChat notes
-
-VRChat full-body over OSC expects tracker endpoints under `/tracking/trackers/...`.
-This app now targets those addresses directly by default.
-
-Typical integration pipeline:
-
-1. Android app sends tracker OSC to your PC where VRChat runs.
-2. VRChat consumes tracker messages on port 9001.
-
-If you need custom filtering/remapping, use the included bridge.
-
-You can set this app's prefix to match what your bridge expects.
-
-## Desktop bridge (included)
-
-Included utility:
-
-- `tools/vrchat_bridge.py`
-
-Install and run on PC:
-
-1. `cd tools`
-2. `python -m venv .venv`
-3. `.venv\Scripts\activate`
-4. `pip install -r requirements.txt`
-5. `python vrchat_bridge.py --listen-port 9000 --vrchat-port 9001`
-
-The bridge listens for:
-
-- `/tracking/pose/<joint>` with args `[x, y, z, visibility]`
-
-And forwards mapped trackers to official VRChat tracker paths:
-
-- `/tracking/trackers/1..8/position`
-- `/tracking/trackers/1..8/rotation`
-- Optional `/tracking/trackers/head/position` and `/tracking/trackers/head/rotation`
-
-Example:
-
-- `python vrchat_bridge.py --listen-port 9000 --vrchat-port 9001 --height-m 1.70 --send-head`
-
-## Default endpoint in UI
-
-- IP: `192.168.1.10`
-- Port: `9000`
-- Prefix: `/tracking/pose`
-
-Tracking defaults:
-
-- Back camera by default (best quality path).
-- VRChat trackers mode enabled by default.
-- Head alignment sending enabled by default.
-- OSC bundle enabled.
-- FPS cap set to 20.
-- Smoothing set to 35%.
-
-Change these to your PC local IP and your bridge listener port.
+This project is intended for personal and development use.
