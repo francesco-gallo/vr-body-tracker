@@ -10,51 +10,56 @@ object PoseOscMapper {
     private var lastTorsoYaw = 0f
     private val lastRotations = HashMap<Int, Vec3>()
 
+    // Buffer riutilizzabile per evitare di riallocare l'ArrayList ad ogni frame a 60 FPS
+    private val reusableMessageList = ArrayList<OscMessageData>(20)
+
     fun toMessages(
         frame: PoseFrame,
-        estimatedHeightMeters: Float
+        estimatedHeightMeters: Float,
+        isFrontCamera: Boolean
     ): List<OscMessageData> {
+        reusableMessageList.clear()
         return toVrchatTrackerMessages(
             frame = frame,
-            estimatedHeightMeters = estimatedHeightMeters
+            estimatedHeightMeters = estimatedHeightMeters,
+            isFrontCamera = isFrontCamera
         )
     }
 
     private fun toVrchatTrackerMessages(
         frame: PoseFrame,
-        estimatedHeightMeters: Float
+        estimatedHeightMeters: Float,
+        isFrontCamera: Boolean
     ): List<OscMessageData> {
-        val byName = frame.joints.associateBy { it.name }
+        val joints = frame.joints
 
-        val leftHip = getByName(byName, "left_hip")
-        val rightHip = getByName(byName, "right_hip")
-        val leftShoulder = getByName(byName, "left_shoulder")
-        val rightShoulder = getByName(byName, "right_shoulder")
+        // Ricerca diretta senza creare una nuova HashMap (associateBy) ad ogni frame
+        val leftHip = findJoint(joints, "left_hip")
+        val rightHip = findJoint(joints, "right_hip")
+        val leftShoulder = findJoint(joints, "left_shoulder")
+        val rightShoulder = findJoint(joints, "right_shoulder")
 
-        val head = averageJoint("head_mid", getByName(byName, "left_ear"), getByName(byName, "right_ear"))
-            ?: averageJoint("head_mid", getByName(byName, "left_eye"), getByName(byName, "right_eye"))
-            ?: getByName(byName, "nose")
+        val head = averageJoint("head_mid", findJoint(joints, "left_ear"), findJoint(joints, "right_ear"))
+            ?: averageJoint("head_mid", findJoint(joints, "left_eye"), findJoint(joints, "right_eye"))
+            ?: findJoint(joints, "nose")
 
         val hip = averageJoint("hip_mid", leftHip, rightHip)
         val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
-        val leftFoot = getByName(byName, "left_ankle")
-        val rightFoot = getByName(byName, "right_ankle")
-        val leftKnee = getByName(byName, "left_knee")
-        val rightKnee = getByName(byName, "right_knee")
-        val leftElbow = getByName(byName, "left_elbow")
-        val rightElbow = getByName(byName, "right_elbow")
+        val leftFoot = findJoint(joints, "left_ankle")
+        val rightFoot = findJoint(joints, "right_ankle")
+        val leftKnee = findJoint(joints, "left_knee")
+        val rightKnee = findJoint(joints, "right_knee")
+        val leftElbow = findJoint(joints, "left_elbow")
+        val rightElbow = findJoint(joints, "right_elbow")
 
         val rootAnchor = hip ?: chest ?: return emptyList()
 
-        val observedHeight = estimateObservedHeight(byName)
+        val observedHeight = estimateObservedHeight(joints)
         val safeObserved = max(0.2f, observedHeight)
         val safeTargetHeight = estimatedHeightMeters.coerceIn(1.0f, 2.5f)
         val metersPerNorm = safeTargetHeight / safeObserved
-        val depthScale = metersPerNorm * 0.25f
 
         val torsoYaw = estimateTorsoYawDegrees(leftShoulder, rightShoulder, leftHip, rightHip)
-
-        val messages = ArrayList<OscMessageData>(20)
 
         val torsoRot = Vec3(0f, torsoYaw, 0f)
         val headRot = Vec3(0f, torsoYaw, 0f)
@@ -65,17 +70,20 @@ object PoseOscMapper {
         val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultYaw = torsoYaw)
         val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultYaw = torsoYaw)
 
-        // Tracker VRChat Standard
-        appendTracker(messages, 0, head, headRot, rootAnchor, metersPerNorm, depthScale)
+        // Specchiamento asse X per la fotocamera frontale
+        val xMultiplier = if (isFrontCamera) -1f else 1f
+
+        // Head
+        appendTracker(reusableMessageList, 0, head, headRot, rootAnchor, metersPerNorm, xMultiplier)
         if (head != null) {
-            val headPos = toTrackingVector(head, rootAnchor, metersPerNorm, depthScale)
-            messages.add(
+            val headPos = toTrackingVector(head, rootAnchor, metersPerNorm, xMultiplier)
+            reusableMessageList.add(
                 OscMessageData(
                     address = "/tracking/trackers/head/position",
                     args = listOf(headPos.x, headPos.y, headPos.z)
                 )
             )
-            messages.add(
+            reusableMessageList.add(
                 OscMessageData(
                     address = "/tracking/trackers/head/rotation",
                     args = listOf(headRot.x, headRot.y, headRot.z)
@@ -83,16 +91,23 @@ object PoseOscMapper {
             )
         }
 
-        appendTracker(messages, 1, hip, torsoRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 2, chest, torsoRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, depthScale)
-        appendTracker(messages, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, depthScale)
+        appendTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)
 
-        return messages
+        return reusableMessageList
+    }
+
+    private fun findJoint(joints: List<JointSample>, name: String): JointSample? {
+        for (i in joints.indices) {
+            if (joints[i].name == name) return joints[i]
+        }
+        return null
     }
 
     private fun appendTracker(
@@ -102,11 +117,11 @@ object PoseOscMapper {
         rotationEuler: Vec3,
         origin: JointSample,
         metersPerNorm: Float,
-        depthScale: Float
+        xMultiplier: Float
     ) {
         if (joint == null) return
 
-        val p = toTrackingVector(joint, origin, metersPerNorm, depthScale)
+        val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier)
         out.add(
             OscMessageData(
                 address = "/tracking/trackers/$id/position",
@@ -202,16 +217,17 @@ object PoseOscMapper {
         joint: JointSample,
         origin: JointSample,
         metersPerNorm: Float,
-        depthScale: Float
+        xMultiplier: Float
     ): Vec3 {
-        val x = (joint.x - origin.x) * metersPerNorm
+        val x = (joint.x - origin.x) * metersPerNorm * xMultiplier
         val y = (origin.y - joint.y) * metersPerNorm
-        val z = (joint.z - origin.z) * depthScale
-        return Vec3(x, y, z)
-    }
 
-    private fun getByName(byName: Map<String, JointSample>, name: String): JointSample? {
-        return byName[name]
+        // Calcolo Z della profondità: convertiamo la coordinata Z grezza normalizzata di ML Kit
+        // applicando il rapporto d'aspetto in metri basato sull'altezza osservata.
+        val deltaZNorm = (joint.z - origin.z) / 1000f
+        val z = deltaZNorm * metersPerNorm
+
+        return Vec3(x, y, z)
     }
 
     private fun averageJoint(name: String, left: JointSample?, right: JointSample?): JointSample? {
@@ -228,20 +244,23 @@ object PoseOscMapper {
         )
     }
 
-    private fun estimateObservedHeight(byName: Map<String, JointSample>): Float {
-        val yValues = listOfNotNull(
-            byName["left_hip"]?.y,
-            byName["right_hip"]?.y,
-            byName["left_shoulder"]?.y,
-            byName["right_shoulder"]?.y,
-            byName["left_ankle"]?.y,
-            byName["right_ankle"]?.y
-        )
+    private fun estimateObservedHeight(joints: List<JointSample>): Float {
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        var count = 0
 
-        if (yValues.size < 2) return 1f
+        for (i in joints.indices) {
+            val j = joints[i]
+            if (j.name == "left_hip" || j.name == "right_hip" ||
+                j.name == "left_shoulder" || j.name == "right_shoulder" ||
+                j.name == "left_ankle" || j.name == "right_ankle") {
+                if (j.y < minY) minY = j.y
+                if (j.y > maxY) maxY = j.y
+                count++
+            }
+        }
 
-        val minY = yValues.minOrNull() ?: return 1f
-        val maxY = yValues.maxOrNull() ?: return 1f
+        if (count < 2 || minY >= maxY) return 1f
         return abs(maxY - minY)
     }
 }

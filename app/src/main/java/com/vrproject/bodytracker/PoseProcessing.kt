@@ -7,10 +7,12 @@ data class StreamConfig(
 class PoseProcessor {
     private val smoothedJoints = HashMap<String, JointSample>()
     private val calibrationOffsets = HashMap<String, Vec3Offset>()
+    private val reusableProcessedJoints = ArrayList<JointSample>(32)
 
     fun calibrate(frame: PoseFrame) {
         calibrationOffsets.clear()
-        for (joint in frame.joints) {
+        for (i in frame.joints.indices) {
+            val joint = frame.joints[i]
             calibrationOffsets[joint.name] = Vec3Offset(joint.x, joint.y, joint.z)
         }
     }
@@ -18,21 +20,24 @@ class PoseProcessor {
     fun clear() {
         smoothedJoints.clear()
         calibrationOffsets.clear()
+        reusableProcessedJoints.clear()
     }
 
     fun process(frame: PoseFrame, config: StreamConfig): PoseFrame {
-        val outJoints = ArrayList<JointSample>(frame.joints.size)
+        reusableProcessedJoints.clear()
+        val alpha = config.smoothingAlpha.coerceIn(0f, 0.95f)
 
-        for (joint in frame.joints) {
-            // 1. Sottrazione offset di calibrazione neutra (se presente)
+        for (i in frame.joints.indices) {
+            val joint = frame.joints[i]
+
+            // 1. Sottrazione offset di calibrazione neutra
             val offset = calibrationOffsets[joint.name]
             val calibratedX = if (offset != null) joint.x - offset.x else joint.x
             val calibratedY = if (offset != null) joint.y - offset.y else joint.y
             val calibratedZ = if (offset != null) joint.z - offset.z else joint.z
 
-            // 2. Smoothing (Filtro Passa-Basso Exponential Moving Average)
+            // 2. Smoothing (EMA - Exponential Moving Average)
             val previous = smoothedJoints[joint.name]
-            val alpha = config.smoothingAlpha.coerceIn(0f, 0.95f)
 
             val finalJoint = if (previous == null || alpha <= 0.01f) {
                 JointSample(
@@ -53,14 +58,14 @@ class PoseProcessor {
             }
 
             smoothedJoints[joint.name] = finalJoint
-            outJoints.add(finalJoint)
+            reusableProcessedJoints.add(finalJoint)
         }
 
         return PoseFrame(
             timestampMs = frame.timestampMs,
             imageWidth = frame.imageWidth,
             imageHeight = frame.imageHeight,
-            joints = outJoints
+            joints = ArrayList(reusableProcessedJoints)
         )
     }
 

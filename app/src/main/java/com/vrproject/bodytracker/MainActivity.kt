@@ -114,7 +114,8 @@ class MainActivity : AppCompatActivity() {
 
             val messages = PoseOscMapper.toMessages(
                 frame = processedFrame,
-                estimatedHeightMeters = cachedHeightMeters
+                estimatedHeightMeters = cachedHeightMeters,
+                isFrontCamera = useFrontCamera
             )
 
             val useBundle = binding.bundleSwitch.isChecked
@@ -371,7 +372,6 @@ class MainActivity : AppCompatActivity() {
             )
             .build()
 
-        // Usiamo Camera2Interop per richiedere 60 FPS alla fotocamera
         val analysisBuilder = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setResolutionSelector(resolutionSelector)
@@ -504,11 +504,15 @@ class MainActivity : AppCompatActivity() {
             "left_knee", "right_knee",
             "left_ankle", "right_ankle"
         )
-        val visible = required.count { name ->
+        var visibleCount = 0
+        for (i in required.indices) {
+            val name = required[i]
             val joint = frame.joints.firstOrNull { it.name == name }
-            joint != null && joint.visibility > 0.25f
+            if (joint != null && joint.visibility > 0.25f) {
+                visibleCount++
+            }
         }
-        return BodyCoverage(required.size, visible, visible >= required.size / 2)
+        return BodyCoverage(required.size, visibleCount, visibleCount >= required.size / 2)
     }
 
     private data class BodyCoverage(

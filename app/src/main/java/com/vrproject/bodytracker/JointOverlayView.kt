@@ -63,7 +63,8 @@ class JointOverlayView @JvmOverloads constructor(
         }
 
         drawSkeleton(canvas)
-        for (joint in joints) {
+        for (i in joints.indices) {
+            val joint = joints[i]
             if (joint.visibility < 0.25f) {
                 continue
             }
@@ -76,10 +77,10 @@ class JointOverlayView @JvmOverloads constructor(
     }
 
     private fun drawSkeleton(canvas: Canvas) {
-        val byName = joints.associateBy { it.name }
-        for ((a, b) in BONES) {
-            val ja = byName[a]
-            val jb = byName[b]
+        for (pairIndex in BONES.indices) {
+            val bone = BONES[pairIndex]
+            val ja = findJoint(bone.first)
+            val jb = findJoint(bone.second)
             if (ja == null || jb == null) {
                 continue
             }
@@ -89,6 +90,13 @@ class JointOverlayView @JvmOverloads constructor(
 
             canvas.drawLine(mapX(ja.x), mapY(ja.y), mapX(jb.x), mapY(jb.y), linePaint)
         }
+    }
+
+    private fun findJoint(name: String): JointSample? {
+        for (i in joints.indices) {
+            if (joints[i].name == name) return joints[i]
+        }
+        return null
     }
 
     private fun mapX(normX: Float): Float {
@@ -116,7 +124,6 @@ class JointOverlayView @JvmOverloads constructor(
             return RenderBounds(0f, 0f, width.toFloat(), height.toFloat())
         }
 
-        // Use MAX scale for FILL_CENTER behavior (matches default PreviewView)
         val scale = max(width.toFloat() / sourceWidth.toFloat(), height.toFloat() / sourceHeight.toFloat())
         val drawWidth = sourceWidth * scale
         val drawHeight = sourceHeight * scale
