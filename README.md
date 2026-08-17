@@ -56,7 +56,9 @@ The following trackers are transmitted to the `/tracking/trackers/{id}/` path:
 4.  **Streaming**:
     *   Tap **Start Stream**.
     *   Enable OSC in VRChat (Action Menu > Expressions > Options > OSC > Enabled).
-5.  **Remote Monitoring**: Access `http://[PHONE_IP]:8080` in a web browser to view the processed MJPEG stream.
+5.  **Remote Monitoring**: Access `http://[PHONE_IP]:8080` in a web browser to view the processed MJPEG stream. NOTE: THIS WILL DROP THE PERFORMANCES.
+
+If you change the destination port from 9000 to 9002, you can also use the tools/vrchat_bridge.ps1 powershell script to see which values will be sent afterward to 9000
 
 ## 🏗️ Project Structure
 
