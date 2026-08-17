@@ -2,7 +2,8 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#000000">
 
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
@@ -22,318 +23,197 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/toggleUiButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:text="@string/hide_ui"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <androidx.core.widget.NestedScrollView
+    <ScrollView
         android:id="@+id/controlPanel"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="64dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="32dp"
-        android:background="#A6000000"
-        android:fillViewport="true"
-        android:focusableInTouchMode="true"
-        android:overScrollMode="ifContentScrolls"
-        android:scrollbars="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:background="#C8000000"
+        android:padding="16dp"
+        app:layout_constraintBottom_toTopOf="@+id/toggleUiButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <LinearLayout
-            android:id="@+id/controlPanelContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="12dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/titleText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <EditText
-                android:id="@+id/ipEditText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="@android:color/white"
-                android:hint="@string/ip_hint"
-                android:inputType="textUri"
-                android:padding="8dp"
-                android:text="@string/default_ip"
-                android:textColor="@android:color/black" />
-
-            <EditText
-                android:id="@+id/portEditText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="@android:color/white"
-                android:hint="@string/port_hint"
-                android:inputType="number"
-                android:padding="8dp"
-                android:text="@string/default_port"
-                android:textColor="@android:color/black" />
-
-            <EditText
-                android:id="@+id/prefixEditText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="@android:color/white"
-                android:hint="@string/prefix_hint"
-                android:padding="8dp"
-                android:text="@string/default_prefix"
-                android:textColor="@android:color/black" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/height_label"
-                    android:textColor="@android:color/white" />
-
-                <EditText
-                    android:id="@+id/heightEditText"
-                    android:layout_width="90dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:background="@android:color/white"
-                    android:inputType="numberDecimal"
-                    android:padding="8dp"
-                    android:text="@string/default_height_m"
-                    android:textColor="@android:color/black" />
-            </LinearLayout>
-
-            <Switch
-                android:id="@+id/frontCameraSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/front_camera_switch"
-                android:textColor="@android:color/white" />
-
-            <Switch
-                android:id="@+id/invertCameraSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/invert_camera_switch"
-                android:textColor="@android:color/white" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/fps_cap_label"
-                    android:textColor="@android:color/white" />
-
-                <EditText
-                    android:id="@+id/fpsEditText"
-                    android:layout_width="70dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:background="@android:color/white"
-                    android:inputType="number"
-                    android:padding="8dp"
-                    android:text="@string/default_fps"
-                    android:textColor="@android:color/black" />
-
-                <Switch
-                    android:id="@+id/bundleSwitch"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:checked="true"
-                    android:text="@string/osc_bundle_switch"
-                    android:textColor="@android:color/white" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/smoothingLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/smoothing_label"
-                android:textColor="@android:color/white" />
-
-            <SeekBar
-                android:id="@+id/smoothingSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="95"
-                android:progress="35" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal">
-
-                <CheckBox
-                    android:id="@+id/invertXCheck"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/invert_x"
-                    android:textColor="@android:color/white" />
-
-                <CheckBox
-                    android:id="@+id/invertYCheck"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:text="@string/invert_y"
-                    android:textColor="@android:color/white" />
-
-                <CheckBox
-                    android:id="@+id/invertZCheck"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:text="@string/invert_z"
-                    android:textColor="@android:color/white" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/bodyPartToggleLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/body_part_toggle_label"
-                android:textColor="@android:color/white"
-                android:textStyle="bold" />
-
-            <GridLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:useDefaultMargins="true">
-
-                <CheckBox
-                    android:id="@+id/bodyHeadToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_head"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/bodyTorsoToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_torso"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/bodyLeftArmToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_left_arm"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/bodyRightArmToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_right_arm"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/bodyLeftLegToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_left_leg"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/bodyRightLegToggle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/body_right_leg"
-                    android:textColor="@android:color/white"
-                    android:checked="true" />
-            </GridLayout>
-
-            <Button
-                android:id="@+id/calibrateButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/calibrate_button" />
-
-            <Button
-                android:id="@+id/streamButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/start_stream" />
-
-            <Button
-                android:id="@+id/resetButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/reset_button" />
-
+            <!-- Indicatore Last Build -->
             <TextView
                 android:id="@+id/lastBuildText"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="@android:color/white"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="12dp"
+                android:textColor="#AAAAAA"
                 android:textSize="12sp" />
 
             <TextView
                 android:id="@+id/statusText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="@android:color/white"
-                android:textSize="13sp" />
+                android:textColor="#00FF00"
+                android:textSize="14sp" />
 
+            <!-- Nascosto testo debug -->
             <TextView
                 android:id="@+id/debugText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 android:fontFamily="monospace"
-                android:maxLines="8"
-                android:text="@string/debug_waiting"
-                android:textColor="#C8FFFFFF"
-                android:textSize="11sp" />
+                android:textColor="#00FFFF"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <!-- RIGA 1: Indirizzo IP -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Indirizzo IP Destinazione (PC / Quest)"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/ipEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="es. 192.168.1.10"
+                android:inputType="text"
+                android:textColor="#FFFFFF" />
+
+            <!-- RIGA 2: Porta UDP -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Porta UDP VRChat (Default: 9000)"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/portEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="9000"
+                android:inputType="number"
+                android:textColor="#FFFFFF" />
+
+            <!-- RIGA 3: Altezza Utente -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Altezza Utente (Metri)"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/heightEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="1.70"
+                android:inputType="numberDecimal"
+                android:textColor="#FFFFFF" />
+
+            <!-- RIGA 4: Target FPS -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Frequenza Trasmissione (FPS Target)"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/fpsEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="60"
+                android:inputType="number"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/smoothingLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Smoothing Level"
+                android:textColor="#FFFFFF" />
+
+            <SeekBar
+                android:id="@+id/smoothingSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="95" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/frontCameraSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Use Front Camera"
+                android:textColor="#FFFFFF" />
+
+            <!-- NUOVO: Informazioni Hardware Fotocamera -->
+            <TextView
+                android:id="@+id/cameraLevelText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="8dp"
+                android:text="Camera Level: Checking..."
+                android:textColor="#AAAAAA"
+                android:textSize="12sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/invertCameraSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Invert Camera View"
+                android:textColor="#FFFFFF" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/bundleSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Send OSC Bundle"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/calibrateButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Calibrate Neutral Pose" />
+
+            <Button
+                android:id="@+id/streamButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Start Stream" />
+
+            <Button
+                android:id="@+id/resetButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Reset Settings" />
+
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/toggleUiButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="Hide UI"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
