@@ -31,6 +31,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doOnTextChanged
 import com.vrproject.bodytracker.databinding.ActivityMainBinding
+import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var poseTracker: PoseTracker
     private val poseProcessor = PoseProcessor()
     private val oscSender = OscSender()
+
+    // Server Web MJPEG integrato
+    private var mjpegServer: MjpegServer? = null
 
     @Volatile private var streamEnabled = false
     private var lastStatusUpdateMs = 0L
@@ -94,11 +98,31 @@ class MainActivity : AppCompatActivity() {
 
         savedConfig = AppConfigStore.load(this)
 
-        poseTracker = PoseTracker { frame ->
-            updateCameraCaptureFps(frame.timestampMs)
+        // Avvio asincrono del Web Server MJPEG sulla porta 8080
+        startMjpegServer()
 
-            val processedFrame = processFrame(frame)
+        poseTracker = PoseTracker { rawFrame, rawBitmap, rotationDegrees ->
+            updateCameraCaptureFps(rawFrame.timestampMs)
+
+            // 1. Processamento frame (Smoothing EMA + Calibrazione)
+            val processedFrame = processFrame(rawFrame)
+
+            // 2. Aggiornamento Overlay Schermo con il frame processato
             updateOverlay(processedFrame)
+
+            // 3. Generazione e invio dello stream Web con i dati PROCESSATI
+            if (rawBitmap != null) {
+                appScope.launch(Dispatchers.IO) {
+                    val processedJpeg = PoseTracker.renderProcessedWebFrame(
+                        rawBitmap,
+                        processedFrame,
+                        rotationDegrees
+                    )
+                    if (processedJpeg != null) {
+                        mjpegServer?.updateFrame(processedJpeg)
+                    }
+                }
+            }
 
             if (!streamEnabled) {
                 maybeUpdateDebug()
@@ -148,6 +172,26 @@ class MainActivity : AppCompatActivity() {
         oscSender.close()
         sendJob?.cancel()
         poseProcessor.clear()
+        stopMjpegServer()
+    }
+
+    private fun startMjpegServer() {
+        appScope.launch(Dispatchers.IO) {
+            try {
+                mjpegServer = MjpegServer(8080).apply {
+                    start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+                }
+            } catch (_: Exception) {
+                // Gestione porta già in uso o errore avvio server
+            }
+        }
+    }
+
+    private fun stopMjpegServer() {
+        try {
+            mjpegServer?.stop()
+            mjpegServer = null
+        } catch (_: Exception) {}
     }
 
     private fun setupUi() {

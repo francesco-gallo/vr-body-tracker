@@ -9,8 +9,6 @@ object PoseOscMapper {
 
     private var lastTorsoYaw = 0f
     private val lastRotations = HashMap<Int, Vec3>()
-
-    // Buffer riutilizzabile per evitare di riallocare l'ArrayList ad ogni frame a 60 FPS
     private val reusableMessageList = ArrayList<OscMessageData>(20)
 
     fun toMessages(
@@ -33,15 +31,13 @@ object PoseOscMapper {
     ): List<OscMessageData> {
         val joints = frame.joints
 
-        // Ricerca diretta senza creare una nuova HashMap (associateBy) ad ogni frame
         val leftHip = findJoint(joints, "left_hip")
         val rightHip = findJoint(joints, "right_hip")
         val leftShoulder = findJoint(joints, "left_shoulder")
         val rightShoulder = findJoint(joints, "right_shoulder")
 
-        val head = averageJoint("head_mid", findJoint(joints, "left_ear"), findJoint(joints, "right_ear"))
-            ?: averageJoint("head_mid", findJoint(joints, "left_eye"), findJoint(joints, "right_eye"))
-            ?: findJoint(joints, "nose")
+        // Usa direttamente la testa singola "head"
+        val head = findJoint(joints, "head")
 
         val hip = averageJoint("hip_mid", leftHip, rightHip)
         val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
@@ -70,7 +66,6 @@ object PoseOscMapper {
         val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultYaw = torsoYaw)
         val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultYaw = torsoYaw)
 
-        // Specchiamento asse X per la fotocamera frontale
         val xMultiplier = if (isFrontCamera) -1f else 1f
 
         // Head
@@ -221,9 +216,6 @@ object PoseOscMapper {
     ): Vec3 {
         val x = (joint.x - origin.x) * metersPerNorm * xMultiplier
         val y = (origin.y - joint.y) * metersPerNorm
-
-        // Calcolo Z della profondità: convertiamo la coordinata Z grezza normalizzata di ML Kit
-        // applicando il rapporto d'aspetto in metri basato sull'altezza osservata.
         val deltaZNorm = (joint.z - origin.z) / 1000f
         val z = deltaZNorm * metersPerNorm
 
