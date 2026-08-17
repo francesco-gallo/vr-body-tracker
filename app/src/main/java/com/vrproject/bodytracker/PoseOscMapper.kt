@@ -11,6 +11,9 @@ enum class OscOutputMode {
 }
 
 object PoseOscMapper {
+    // Cache per mantenere gli ultimi valori di rotazione tra un frame e l'altro (Low-pass filter)
+    private var lastTorsoYaw = 0f
+    private val lastRotations = HashMap<Int, Vec3>()
     fun toMessages(
         frame: PoseFrame,
         prefix: String,
@@ -94,16 +97,38 @@ object PoseOscMapper {
         val hipRot = Vec3(0f, torsoYaw, 0f)
         val chestRot = Vec3(0f, torsoYaw, 0f)
         val headRot = Vec3(0f, torsoYaw, 0f)
-        val leftFootRot = rotationFromDirection(leftKnee, leftFoot, defaultYaw = torsoYaw)
-        val rightFootRot = rotationFromDirection(rightKnee, rightFoot, defaultYaw = torsoYaw)
-        val leftKneeRot = rotationFromDirection(hip, leftKnee, defaultYaw = torsoYaw)
-        val rightKneeRot = rotationFromDirection(hip, rightKnee, defaultYaw = torsoYaw)
-        val leftElbowRot = rotationFromDirection(leftShoulder, leftElbow, defaultYaw = torsoYaw)
-        val rightElbowRot = rotationFromDirection(rightShoulder, rightElbow, defaultYaw = torsoYaw)
+        val leftFootRot = rotationFromDirection(3, leftKnee, leftFoot, defaultYaw = torsoYaw)
+        val rightFootRot = rotationFromDirection(4, rightKnee, rightFoot, defaultYaw = torsoYaw)
+        val leftKneeRot = rotationFromDirection(5, hip, leftKnee, defaultYaw = torsoYaw)
+        val rightKneeRot = rotationFromDirection(6, hip, rightKnee, defaultYaw = torsoYaw)
+        val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultYaw = torsoYaw)
+        val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultYaw = torsoYaw)
 
         if (enabledBodyParts.head) {
+            // 1. Invia al Tracker 0 (Standard VRChat OSC Trackers ID 0 = Head)
             appendTracker(messages, 0, head, headRot, origin, metersPerNorm, depthScale)
+
+            // 2. Invia anche all'endpoint dedicato esplicito per la testa
+            if (head != null) {
+                val headPos = toTrackingVector(head, origin, metersPerNorm, depthScale)
+
+                // Posizione della testa in Metri [X, Y, Z]
+                messages.add(
+                    OscMessageData(
+                        address = "/tracking/trackers/head/position",
+                        args = listOf(headPos.x, headPos.y, headPos.z)
+                    )
+                )
+                // Rotazione della testa in Gradi Euleriani [Pitch, Yaw, Roll]
+                messages.add(
+                    OscMessageData(
+                        address = "/tracking/trackers/head/rotation",
+                        args = listOf(headRot.x, headRot.y, headRot.z)
+                    )
+                )
+            }
         }
+
         if (enabledBodyParts.torso) {
             appendTracker(messages, 1, hip, hipRot, origin, metersPerNorm, depthScale)
             appendTracker(messages, 2, chest, chestRot, origin, metersPerNorm, depthScale)
@@ -165,14 +190,26 @@ object PoseOscMapper {
         val shoulderYaw = estimateYawFromLeftRight(leftShoulder, rightShoulder)
         val hipYaw = estimateYawFromLeftRight(leftHip, rightHip)
 
-        return when {
+        val rawYaw = when {
             shoulderYaw != null && hipYaw != null -> (shoulderYaw + hipYaw) * 0.5f
             shoulderYaw != null -> shoulderYaw
             hipYaw != null -> hipYaw
-            else -> 0f
+            else -> lastTorsoYaw
         }
+
+        // Filtro Passa-Basso per evitare scatti bruschi nel Torso
+        val smoothedYaw = lerpAngle(lastTorsoYaw, rawYaw, 0.25f)
+        lastTorsoYaw = smoothedYaw
+        return smoothedYaw
     }
 
+    // Funzione helper per interpolare gli angoli senza problemi di scavalcamento (da -180 a 180)
+    private fun lerpAngle(from: Float, to: Float, alpha: Float): Float {
+        var diff = (to - from) % 360f
+        if (diff < -180f) diff += 360f
+        if (diff > 180f) diff -= 360f
+        return from + diff * alpha
+    }
     private fun estimateYawFromLeftRight(left: JointSample?, right: JointSample?): Float? {
         if (left == null || right == null) {
             return null
@@ -189,24 +226,41 @@ object PoseOscMapper {
         return radiansToDegrees(atan2(forwardX, forwardZ))
     }
 
-    private fun rotationFromDirection(start: JointSample?, end: JointSample?, defaultYaw: Float): Vec3 {
-        if (start == null || end == null) {
-            return Vec3(0f, defaultYaw, 0f)
+    private fun rotationFromDirection(
+        trackerId: Int,
+        start: JointSample?,
+        end: JointSample?,
+        defaultYaw: Float
+    ): Vec3 {
+        val lastRot = lastRotations[trackerId] ?: Vec3(0f, defaultYaw, 0f)
+
+        // Se la visibilità dell'arto è bassa o manca un joint, mantieni l'ultima rotazione valida
+        if (start == null || end == null || start.visibility < 0.4f || end.visibility < 0.4f) {
+            return lastRot
         }
 
         val dx = end.x - start.x
-        val dy = start.y - end.y
+        val dy = -(end.y - start.y)
         val dz = end.z - start.z
 
-        val yaw = radiansToDegrees(atan2(dx, dz))
-        val horizontal = sqrt((dx * dx) + (dz * dz)).coerceAtLeast(0.0001f)
-        val pitch = radiansToDegrees(atan2(dy, horizontal))
+        val horizontal = sqrt((dx * dx) + (dz * dz))
 
-        return Vec3(
-            x = pitch,
-            y = yaw,
-            z = 0f
-        )
+        // Evita il "Gimbal Lock" se l'arto è perfettamente verticale
+        if (horizontal < 0.01f) {
+            return lastRot
+        }
+
+        val rawYaw = radiansToDegrees(atan2(dx, dz))
+        val rawPitch = radiansToDegrees(atan2(dy, horizontal))
+
+        // Applica lo smoothing sugli angoli (Alfa 0.3 = 30% nuovo dato, 70% vecchio)
+        val newYaw = lerpAngle(lastRot.y, rawYaw, 0.3f)
+        val newPitch = lerpAngle(lastRot.x, rawPitch, 0.3f)
+
+        val smoothedVec = Vec3(x = newPitch, y = newYaw, z = 0f)
+        lastRotations[trackerId] = smoothedVec
+
+        return smoothedVec
     }
 
     private fun radiansToDegrees(value: Float): Float {

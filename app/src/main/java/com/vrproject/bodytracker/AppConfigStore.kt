@@ -39,13 +39,13 @@ object AppConfigStore {
         vrchatTrackers = true,
         heightMeters = 1.70f,
         frontCamera = false,
-        fps = 20,
+        fps = 60,
         smoothing = 35,
         bundle = true,
         invertX = false,
         invertY = false,
         invertZ = false,
-        bodyParts = BodyPartSelection()
+        bodyParts = BodyPartSelection(),
     )
 
     fun load(context: Context): AppConfig {

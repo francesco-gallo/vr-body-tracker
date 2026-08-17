@@ -183,8 +183,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.calibrateButton.setOnClickListener {
-            pendingCalibration = true
-            binding.statusText.text = getString(R.string.status_calibrate_pending)
+            appScope.launch(Dispatchers.Main) {
+                // Disabilita l'intera interfaccia utente
+                setUiControlsEnabled(false)
+
+                // Countdown da 5 a 1 secondo
+                for (secondsLeft in 5 downTo 1) {
+                    binding.statusText.text = "Calibrazione tra $secondsLeft secondi... Mettiti in posizione!"
+                    kotlinx.coroutines.delay(1000L)
+                }
+
+                // Imposta il flag per catturare la posa al prossimo frame disponibile
+                pendingCalibration = true
+                binding.statusText.text = getString(R.string.status_calibrate_pending)
+
+                // Riabilita l'interfaccia utente
+                setUiControlsEnabled(true)
+            }
         }
 
         binding.smoothingSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -418,17 +433,8 @@ class MainActivity : AppCompatActivity() {
             }
 
         provider.unbindAll()
-        val selector = if (useFrontCamera) {
-            CameraSelector.DEFAULT_FRONT_CAMERA
-        } else {
-            CameraSelector.DEFAULT_BACK_CAMERA
-        }
-        provider.bindToLifecycle(
-            this,
-            selector,
-            preview,
-            analysis
-        )
+        val selector = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        provider.bindToLifecycle(this, selector, preview, analysis)
     }
 
     private fun processFrame(frame: PoseFrame): PoseFrame {
@@ -635,5 +641,29 @@ val mode = if (vrchatModeEnabled) "vrchat" else "raw"
             }
             binding.statusText.text = statusText
         }
+    }
+
+    private fun setUiControlsEnabled(enabled: Boolean) {
+        binding.calibrateButton.isEnabled = enabled
+        binding.streamButton.isEnabled = enabled
+        binding.resetButton.isEnabled = enabled
+        binding.ipEditText.isEnabled = enabled
+        binding.portEditText.isEnabled = enabled
+        binding.prefixEditText.isEnabled = enabled
+        binding.heightEditText.isEnabled = enabled
+        binding.fpsEditText.isEnabled = enabled
+        binding.frontCameraSwitch.isEnabled = enabled
+        binding.invertCameraSwitch.isEnabled = enabled
+        binding.smoothingSeekBar.isEnabled = enabled
+        binding.bundleSwitch.isEnabled = enabled
+        binding.invertXCheck.isEnabled = enabled
+        binding.invertYCheck.isEnabled = enabled
+        binding.invertZCheck.isEnabled = enabled
+        binding.bodyHeadToggle.isEnabled = enabled
+        binding.bodyTorsoToggle.isEnabled = enabled
+        binding.bodyLeftArmToggle.isEnabled = enabled
+        binding.bodyRightArmToggle.isEnabled = enabled
+        binding.bodyLeftLegToggle.isEnabled = enabled
+        binding.bodyRightLegToggle.isEnabled = enabled
     }
 }
