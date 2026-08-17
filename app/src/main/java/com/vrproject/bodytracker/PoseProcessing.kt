@@ -1,7 +1,5 @@
 package com.vrproject.bodytracker
 
-import kotlin.math.abs
-
 data class StreamConfig(
     val smoothingAlpha: Float = 0.35f
 )

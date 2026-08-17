@@ -15,5 +15,25 @@
     <string name="stop_stream">Stop Stream</string>
     <string name="hide_ui">Hide UI</string>
     <string name="show_ui">Show UI</string>
+    <string name="status_calibrating">Calibrazione tra %1$d secondi... Mettiti in posizione!</string>
+    <string name="status_settings_reset">Settings reset to defaults.</string>
+    <string name="status_streaming_info">Streaming %1$d joints to %2$s:%3$d (%4$s)</string>
+    <string name="status_partial_body">Partial body detected: %1$d/%2$d major joints visible</string>
+    <string name="camera_info_format">Camera Level: %1$s | Refresh Rate: %2$s</string>
+    <string name="label_ip_address">Indirizzo IP Destinazione (PC / Quest)</string>
+    <string name="hint_ip_address">es. 192.168.1.10</string>
+    <string name="label_port">Porta UDP VRChat (Default: 9000)</string>
+    <string name="hint_port">9000</string>
+    <string name="label_height">Altezza Utente (Metri)</string>
+    <string name="hint_height">1.70</string>
+    <string name="label_fps">Frequenza Trasmissione (FPS Target)</string>
+    <string name="hint_fps">60</string>
+    <string name="label_smoothing">Smoothing Level</string>
+    <string name="label_use_front_camera">Use Front Camera</string>
+    <string name="label_camera_checking">Camera: Checking...</string>
+    <string name="label_invert_camera">Invert Camera View</string>
+    <string name="label_osc_bundle">Send OSC Bundle</string>
+    <string name="btn_calibrate">Calibrate Neutral Pose</string>
+    <string name="btn_reset">Reset Settings</string>
     <string name="last_build_label">Last build: %1$s</string>
 </resources>

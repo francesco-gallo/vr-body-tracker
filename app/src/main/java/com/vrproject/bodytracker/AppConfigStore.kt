@@ -1,6 +1,7 @@
 package com.vrproject.bodytracker
 
 import android.content.Context
+import androidx.core.content.edit
 
 data class AppConfig(
     val ip: String,
@@ -31,7 +32,7 @@ object AppConfigStore {
         val raw = prefs.getString(PREF_KEY, null) ?: return defaultConfig()
         return try {
             fromMap(parseRawString(raw))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             clear(context)
             defaultConfig()
         }
@@ -39,14 +40,14 @@ object AppConfigStore {
 
     fun save(context: Context, config: AppConfig) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(PREF_KEY, encodeMap(toMap(config)))
-            .apply()
+        prefs.edit {
+            putString(PREF_KEY, encodeMap(toMap(config)))
+        }
     }
 
     fun clear(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(PREF_KEY).apply()
+        prefs.edit { remove(PREF_KEY) }
     }
 
     fun toMap(config: AppConfig): Map<String, String> = mapOf(

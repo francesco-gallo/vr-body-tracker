@@ -73,7 +73,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Indirizzo IP Destinazione (PC / Quest)"
+                android:text="@string/label_ip_address"
                 android:textColor="#888888"
                 android:textSize="12sp" />
 
@@ -81,7 +81,8 @@
                 android:id="@+id/ipEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="es. 192.168.1.10"
+                android:autofillHints="ipAddress"
+                android:hint="@string/hint_ip_address"
                 android:inputType="text"
                 android:textColor="#FFFFFF" />
 
@@ -90,7 +91,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Porta UDP VRChat (Default: 9000)"
+                android:text="@string/label_port"
                 android:textColor="#888888"
                 android:textSize="12sp" />
 
@@ -98,7 +99,8 @@
                 android:id="@+id/portEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="9000"
+                android:autofillHints="none"
+                android:hint="@string/hint_port"
                 android:inputType="number"
                 android:textColor="#FFFFFF" />
 
@@ -107,7 +109,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Altezza Utente (Metri)"
+                android:text="@string/label_height"
                 android:textColor="#888888"
                 android:textSize="12sp" />
 
@@ -115,7 +117,8 @@
                 android:id="@+id/heightEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="1.70"
+                android:autofillHints="none"
+                android:hint="@string/hint_height"
                 android:inputType="numberDecimal"
                 android:textColor="#FFFFFF" />
 
@@ -124,7 +127,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Frequenza Trasmissione (FPS Target)"
+                android:text="@string/label_fps"
                 android:textColor="#888888"
                 android:textSize="12sp" />
 
@@ -132,7 +135,8 @@
                 android:id="@+id/fpsEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="60"
+                android:autofillHints="none"
+                android:hint="@string/hint_fps"
                 android:inputType="number"
                 android:textColor="#FFFFFF" />
 
@@ -141,7 +145,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Smoothing Level"
+                android:text="@string/label_smoothing"
                 android:textColor="#FFFFFF" />
 
             <SeekBar
@@ -154,7 +158,7 @@
                 android:id="@+id/frontCameraSwitch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Use Front Camera"
+                android:text="@string/label_use_front_camera"
                 android:textColor="#FFFFFF" />
 
             <!-- NUOVO: Informazioni Hardware Fotocamera -->
@@ -164,7 +168,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:layout_marginBottom="8dp"
-                android:text="Camera: Checking..."
+                android:text="@string/label_camera_checking"
                 android:textColor="#AAAAAA"
                 android:textSize="12sp" />
 
@@ -172,14 +176,14 @@
                 android:id="@+id/invertCameraSwitch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Invert Camera View"
+                android:text="@string/label_invert_camera"
                 android:textColor="#FFFFFF" />
 
             <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/bundleSwitch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Send OSC Bundle"
+                android:text="@string/label_osc_bundle"
                 android:textColor="#FFFFFF" />
 
             <Button
@@ -187,21 +191,21 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Calibrate Neutral Pose" />
+                android:text="@string/btn_calibrate" />
 
             <Button
                 android:id="@+id/streamButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Start Stream" />
+                android:text="@string/start_stream" />
 
             <Button
                 android:id="@+id/resetButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Reset Settings" />
+                android:text="@string/btn_reset" />
 
         </LinearLayout>
     </ScrollView>
@@ -211,7 +215,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
-        android:text="Hide UI"
+        android:text="@string/hide_ui"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

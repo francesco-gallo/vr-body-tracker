@@ -15,9 +15,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -35,9 +37,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
+@OptIn(ExperimentalCamera2Interop::class)
 class MainActivity : AppCompatActivity() {
-    private val logTag = "BodyTrackerDebug"
     private lateinit var binding: ActivityMainBinding
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
@@ -51,7 +54,6 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var streamEnabled = false
     private var lastStatusUpdateMs = 0L
     private var lastSentAtMs = 0L
-    private var lastDebugUpdateMs = 0L
     private var lastFpsWindowStartMs = 0L
     private var framesSentWindow = 0
     private var sendFps = 0f
@@ -99,7 +101,7 @@ class MainActivity : AppCompatActivity() {
             updateOverlay(processedFrame)
 
             if (!streamEnabled) {
-                maybeUpdateDebug(processedFrame, 0)
+                maybeUpdateDebug()
                 return@PoseTracker
             }
 
@@ -123,7 +125,7 @@ class MainActivity : AppCompatActivity() {
 
             updateSendFps(processedFrame.timestampMs)
             maybeUpdateStatus(processedFrame)
-            maybeUpdateDebug(processedFrame, messages.size)
+            maybeUpdateDebug()
         }
 
         setupUi()
@@ -181,8 +183,8 @@ class MainActivity : AppCompatActivity() {
                 setUiControlsEnabled(false)
 
                 for (secondsLeft in 5 downTo 1) {
-                    binding.statusText.text = "Calibrazione tra $secondsLeft secondi... Mettiti in posizione!"
-                    delay(1000L)
+                    binding.statusText.text = getString(R.string.status_calibrating, secondsLeft)
+                    delay(1.seconds)
                 }
 
                 pendingCalibration = true
@@ -230,7 +232,7 @@ class MainActivity : AppCompatActivity() {
             AppConfigStore.clear(this)
             savedConfig = defaultConfig
             populateUiFromConfig(defaultConfig)
-            binding.statusText.text = "Settings reset to defaults."
+            binding.statusText.text = getString(R.string.status_settings_reset)
         }
 
         binding.bundleSwitch.setOnCheckedChangeListener { _, _ -> persistCurrentConfig() }
@@ -329,11 +331,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLastBuildTimestamp() {
         val timestamp = BuildConfig.BUILD_TIMESTAMP
-        val formatted = if (timestamp > 0L) {
-            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(timestamp))
-        } else {
-            "unknown"
-        }
+        val formatted = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(timestamp))
         binding.lastBuildText.text = getString(R.string.last_build_label, formatted)
     }
 
@@ -429,7 +427,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             "Measuring..."
         }
-        binding.cameraLevelText.text = "Camera Level: $activeCameraLevelName | Refresh Rate: $fpsText"
+        binding.cameraLevelText.text = getString(R.string.camera_info_format, activeCameraLevelName, fpsText)
     }
 
     private fun processFrame(frame: PoseFrame): PoseFrame {
@@ -482,7 +480,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun maybeUpdateDebug(frame: PoseFrame, messageCount: Int) {
+    private fun maybeUpdateDebug() {
         // Debug text nascosto
     }
 
@@ -531,9 +529,9 @@ class MainActivity : AppCompatActivity() {
             val cameraName = if (useFrontCamera) getString(R.string.camera_front) else getString(R.string.camera_back)
 
             val statusText = if (coverage.complete) {
-                "Streaming ${frame.joints.size} joints to $host:$port ($cameraName)"
+                getString(R.string.status_streaming_info, frame.joints.size, host, port, cameraName)
             } else {
-                "Partial body detected: ${coverage.visible}/${coverage.required} major joints visible"
+                getString(R.string.status_partial_body, coverage.visible, coverage.required)
             }
             binding.statusText.text = statusText
         }
