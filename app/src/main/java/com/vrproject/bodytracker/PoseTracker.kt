@@ -67,7 +67,6 @@ class PoseTracker(
         val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
         val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
 
-        // Estrazione sicura usando la conversione nativa di CameraX toBitmap()
         val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
         val rawBitmap = if (shouldCaptureBitmap) {
             try {
@@ -220,12 +219,24 @@ class PoseTracker(
                 val ls = byName["left_shoulder"]
                 val rs = byName["right_shoulder"]
                 if (ls != null && rs != null) {
-                    byName["neck"] = JointSample(
-                        name = "neck",
+                    byName["chest_mid"] = JointSample(
+                        name = "chest_mid",
                         x = (ls.x + rs.x) * 0.5f,
                         y = (ls.y + rs.y) * 0.5f,
                         z = (ls.z + rs.z) * 0.5f,
                         visibility = (ls.visibility + rs.visibility) * 0.5f
+                    )
+                }
+
+                val lh = byName["left_hip"]
+                val rh = byName["right_hip"]
+                if (lh != null && rh != null) {
+                    byName["hip_mid"] = JointSample(
+                        name = "hip_mid",
+                        x = (lh.x + rh.x) * 0.5f,
+                        y = (lh.y + rh.y) * 0.5f,
+                        z = (lh.z + rh.z) * 0.5f,
+                        visibility = (lh.visibility + rh.visibility) * 0.5f
                     )
                 }
 
@@ -270,20 +281,15 @@ class PoseTracker(
             return Color.rgb(red, green, blue)
         }
 
+        // Scheletro pulito per la vista Web (testa staccata e bacino centrale unico)
         private val BONES = listOf(
-            "head" to "neck",
-            "neck" to "left_shoulder",
-            "neck" to "right_shoulder",
             "left_shoulder" to "left_elbow",
-            "left_elbow" to "left_wrist",
             "right_shoulder" to "right_elbow",
-            "right_elbow" to "right_wrist",
-            "left_shoulder" to "left_hip",
-            "right_shoulder" to "right_hip",
-            "left_hip" to "right_hip",
-            "left_hip" to "left_knee",
+            "left_shoulder" to "right_shoulder",
+            "chest_mid" to "hip_mid",
+            "hip_mid" to "left_knee",
             "left_knee" to "left_ankle",
-            "right_hip" to "right_knee",
+            "hip_mid" to "right_knee",
             "right_knee" to "right_ankle"
         )
     }

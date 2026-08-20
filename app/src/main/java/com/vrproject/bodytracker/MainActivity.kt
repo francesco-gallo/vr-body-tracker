@@ -3,9 +3,7 @@ package com.vrproject.bodytracker
 import android.Manifest
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CaptureRequest
 import android.os.Bundle
-import android.util.Range
 import android.util.Size
 import android.view.View
 import android.widget.SeekBar
@@ -18,7 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -419,19 +416,14 @@ class MainActivity : AppCompatActivity() {
             )
             .build()
 
-        val analysisBuilder = ImageAnalysis.Builder()
+        // Clean ImageAnalysis setup without hardcoded Camera2 AE shutter limits
+        val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setResolutionSelector(resolutionSelector)
-
-        val camera2Config = Camera2Interop.Extender(analysisBuilder)
-        camera2Config.setCaptureRequestOption(
-            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-            Range(60, 60)
-        )
-
-        val analysis = analysisBuilder.build().also {
-            it.setAnalyzer(cameraExecutor, poseTracker)
-        }
+            .build()
+            .also {
+                it.setAnalyzer(cameraExecutor, poseTracker)
+            }
 
         provider.unbindAll()
         val selector = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA

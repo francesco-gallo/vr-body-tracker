@@ -8,9 +8,12 @@ import kotlin.math.sqrt
 
 object PoseOscMapper {
 
+    // Soglia di visibilità minima per considerare un punto presente a schermo
+    private const val VISIBILITY_THRESHOLD = 0.5f
+
     private var lastTorsoRot = Vec3(0f, 0f, 0f)
-    private val lastRotations = HashMap<Int, Vec3>()
-    private val reusableMessageList = ArrayList<OscMessageData>(20)
+    private val lastRotations = HashMap<String, Vec3>()
+    private val reusableMessageList = ArrayList<OscMessageData>(18)
 
     fun toMessages(
         frame: PoseFrame,
@@ -59,72 +62,61 @@ object PoseOscMapper {
         val torsoRot = calculateTorsoOrientation(leftShoulder, rightShoulder, leftHip, rightHip, isFrontCamera)
         val headRot = torsoRot
 
-        val leftFootRot = rotationFromDirection(3, leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val rightFootRot = rotationFromDirection(4, rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val leftKneeRot = rotationFromDirection(5, hip, leftKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val rightKneeRot = rotationFromDirection(6, hip, rightKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val leftElbowRot = rotationFromDirection(7, leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val rightElbowRot = rotationFromDirection(8, rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val leftFootRot = rotationFromDirection("left_foot", leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightFootRot = rotationFromDirection("right_foot", rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val leftKneeRot = rotationFromDirection("left_knee", hip, leftKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightKneeRot = rotationFromDirection("right_knee", hip, rightKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val leftElbowRot = rotationFromDirection("left_elbow", leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+        val rightElbowRot = rotationFromDirection("right_elbow", rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
 
-        // Head Tracker
-        appendTracker(reusableMessageList, 0, head, headRot, rootAnchor, metersPerNorm, xMultiplier)
-        if (head != null) {
-            val headPos = toTrackingVector(head, rootAnchor, metersPerNorm, xMultiplier)
-            reusableMessageList.add(
-                OscMessageData(
-                    address = "/tracking/trackers/head/position",
-                    args = listOf(headPos.x, headPos.y, headPos.z)
-                )
-            )
-            reusableMessageList.add(
-                OscMessageData(
-                    address = "/tracking/trackers/head/rotation",
-                    args = listOf(headRot.x, headRot.y, headRot.z)
-                )
-            )
-        }
+        // Invio dei 9 tracker VRChat compliant
+        appendNamedTracker(reusableMessageList, "head", head, headRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "hip", hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "chest", chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
 
-        // Tracker VRChat
-        appendTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "left_foot", leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "right_foot", rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier)
+
+        appendNamedTracker(reusableMessageList, "left_knee", leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "right_knee", rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier)
+
+        appendNamedTracker(reusableMessageList, "left_elbow", leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier)
+        appendNamedTracker(reusableMessageList, "right_elbow", rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)
 
         return reusableMessageList
     }
 
     private fun findJoint(joints: List<JointSample>, name: String): JointSample? {
         for (i in joints.indices) {
-            if (joints[i].name == name) return joints[i]
+            val j = joints[i]
+            if (j.name == name && j.visibility >= VISIBILITY_THRESHOLD) {
+                return j
+            }
         }
         return null
     }
 
-    private fun appendTracker(
+    private fun appendNamedTracker(
         out: MutableList<OscMessageData>,
-        id: Int,
+        jointName: String,
         joint: JointSample?,
         rotationEuler: Vec3,
         origin: JointSample,
         metersPerNorm: Float,
         xMultiplier: Float
     ) {
-        if (joint == null) return
+        if (joint == null || joint.visibility < VISIBILITY_THRESHOLD) return
 
         val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier)
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$id/position",
+                address = "/tracking/trackers/$jointName/position",
                 args = listOf(p.x, p.y, p.z)
             )
         )
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$id/rotation",
+                address = "/tracking/trackers/$jointName/rotation",
                 args = listOf(rotationEuler.x, rotationEuler.y, rotationEuler.z)
             )
         )
@@ -192,15 +184,15 @@ object PoseOscMapper {
     }
 
     private fun rotationFromDirection(
-        trackerId: Int,
+        jointName: String,
         start: JointSample?,
         end: JointSample?,
         defaultRot: Vec3,
         isFrontCamera: Boolean
     ): Vec3 {
-        val lastRot = lastRotations[trackerId] ?: defaultRot
+        val lastRot = lastRotations[jointName] ?: defaultRot
 
-        if (start == null || end == null || start.visibility < 0.4f || end.visibility < 0.4f) {
+        if (start == null || end == null || start.visibility < VISIBILITY_THRESHOLD || end.visibility < VISIBILITY_THRESHOLD) {
             return lastRot
         }
 
@@ -225,7 +217,7 @@ object PoseOscMapper {
             y = lerpAngle(lastRot.y, rawYaw, 0.3f),
             z = lerpAngle(lastRot.z, defaultRot.z, 0.3f)
         )
-        lastRotations[trackerId] = smoothedVec
+        lastRotations[jointName] = smoothedVec
 
         return smoothedVec
     }
@@ -256,9 +248,8 @@ object PoseOscMapper {
     }
 
     private fun averageJoint(name: String, left: JointSample?, right: JointSample?): JointSample? {
-        if (left == null && right == null) return null
-        if (left == null) return right
-        if (right == null) return left
+        if (left == null || right == null) return null
+        if (left.visibility < VISIBILITY_THRESHOLD || right.visibility < VISIBILITY_THRESHOLD) return null
 
         return JointSample(
             name = name,
@@ -276,9 +267,10 @@ object PoseOscMapper {
 
         for (i in joints.indices) {
             val j = joints[i]
-            if (j.name == "left_hip" || j.name == "right_hip" ||
-                j.name == "left_shoulder" || j.name == "right_shoulder" ||
-                j.name == "left_ankle" || j.name == "right_ankle") {
+            if (j.visibility >= VISIBILITY_THRESHOLD && (
+                        j.name == "left_hip" || j.name == "right_hip" ||
+                                j.name == "left_shoulder" || j.name == "right_shoulder" ||
+                                j.name == "left_ankle" || j.name == "right_ankle")) {
                 if (j.y < minY) minY = j.y
                 if (j.y > maxY) maxY = j.y
                 count++

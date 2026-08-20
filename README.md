@@ -30,17 +30,21 @@ Almost all of this has been vibe-coded (read as: totally made with AI. This read
 
 The following trackers are transmitted to the `/tracking/trackers/{id}/` path:
 
-| ID | Body Part | OSC Address |
+## 📡 Tracked OSC Endpoints
+
+The application maps and broadcasts data to the following 9 VRChat-compliant OSC tracker addresses:
+
+| Tracker Name | Position OSC Address | Rotation OSC Address |
 | :--- | :--- | :--- |
-| 0 | Head | `head` (Position & Rotation) |
-| 1 | Hip | `1` (Position & Rotation) |
-| 2 | Chest | `2` (Position & Rotation) |
-| 3 | Left Foot | `3` (Position & Rotation) |
-| 4 | Right Foot | `4` (Position & Rotation) |
-| 5 | Left Knee | `5` (Position & Rotation) |
-| 6 | Right Knee | `6` (Position & Rotation) |
-| 7 | Left Elbow | `7` (Position & Rotation) |
-| 8 | Right Elbow | `8` (Position & Rotation) |
+| **Head** | `/tracking/trackers/head/position` | `/tracking/trackers/head/rotation` |
+| **Hip** *(Centered)* | `/tracking/trackers/hip/position` | `/tracking/trackers/hip/rotation` |
+| **Chest** *(Centered)* | `/tracking/trackers/chest/position` | `/tracking/trackers/chest/rotation` |
+| **Left Elbow** | `/tracking/trackers/left_elbow/position` | `/tracking/trackers/left_elbow/rotation` |
+| **Right Elbow** | `/tracking/trackers/right_elbow/position` | `/tracking/trackers/right_elbow/rotation` |
+| **Left Knee** | `/tracking/trackers/left_knee/position` | `/tracking/trackers/left_knee/rotation` |
+| **Right Knee** | `/tracking/trackers/right_knee/position` | `/tracking/trackers/right_knee/rotation` |
+| **Left Foot** | `/tracking/trackers/left_foot/position` | `/tracking/trackers/left_foot/rotation` |
+| **Right Foot** | `/tracking/trackers/right_foot/position` | `/tracking/trackers/right_foot/rotation` |
 
 ## 📖 How to Use
 
