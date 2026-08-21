@@ -39,7 +39,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Indicatore Last Build -->
             <TextView
                 android:id="@+id/lastBuildText"
                 android:layout_width="wrap_content"
@@ -57,7 +56,6 @@
                 android:textColor="#00FF00"
                 android:textSize="14sp" />
 
-            <!-- Nascosto testo debug -->
             <TextView
                 android:id="@+id/debugText"
                 android:layout_width="match_parent"
@@ -68,7 +66,22 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
 
-            <!-- RIGA 1: Indirizzo IP -->
+            <!-- MODEL SELECTOR -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Tracker Model Engine"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <Spinner
+                android:id="@+id/modelSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#33FFFFFF"
+                android:textColor="#FFFFFF" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -86,7 +99,6 @@
                 android:inputType="text"
                 android:textColor="#FFFFFF" />
 
-            <!-- RIGA 2: Porta UDP -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -104,7 +116,6 @@
                 android:inputType="number"
                 android:textColor="#FFFFFF" />
 
-            <!-- RIGA 3: Altezza Utente -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -122,7 +133,6 @@
                 android:inputType="numberDecimal"
                 android:textColor="#FFFFFF" />
 
-            <!-- RIGA 4: Target FPS -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -161,7 +171,6 @@
                 android:text="@string/label_use_front_camera"
                 android:textColor="#FFFFFF" />
 
-            <!-- NUOVO: Informazioni Hardware Fotocamera -->
             <TextView
                 android:id="@+id/cameraLevelText"
                 android:layout_width="match_parent"

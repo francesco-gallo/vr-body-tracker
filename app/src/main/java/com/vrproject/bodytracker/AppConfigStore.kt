@@ -3,6 +3,19 @@ package com.vrproject.bodytracker
 import android.content.Context
 import androidx.core.content.edit
 
+enum class TrackerModelType(val key: String, val displayName: String) {
+    MEDIAPIPE_LITE("mediapipe_lite", "MediaPipe (Lite)"),
+    MEDIAPIPE_FULL("mediapipe_full", "MediaPipe (Full)"),
+    MEDIAPIPE_HEAVY("mediapipe_heavy", "MediaPipe (Heavy)"),
+    MLKIT("mlkit", "Google ML Kit");
+
+    companion object {
+        fun fromKey(key: String): TrackerModelType {
+            return values().firstOrNull { it.key == key } ?: MEDIAPIPE_LITE
+        }
+    }
+}
+
 data class AppConfig(
     val ip: String,
     val port: Int,
@@ -10,7 +23,8 @@ data class AppConfig(
     val frontCamera: Boolean,
     val fps: Int,
     val smoothing: Int,
-    val bundle: Boolean
+    val bundle: Boolean,
+    val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE
 )
 
 object AppConfigStore {
@@ -24,7 +38,8 @@ object AppConfigStore {
         frontCamera = false,
         fps = 60,
         smoothing = 35,
-        bundle = true
+        bundle = true,
+        modelType = TrackerModelType.MEDIAPIPE_LITE
     )
 
     fun load(context: Context): AppConfig {
@@ -57,7 +72,8 @@ object AppConfigStore {
         "frontCamera" to config.frontCamera.toString(),
         "fps" to config.fps.toString(),
         "smoothing" to config.smoothing.toString(),
-        "bundle" to config.bundle.toString()
+        "bundle" to config.bundle.toString(),
+        "modelType" to config.modelType.key
     )
 
     fun fromMap(values: Map<String, String>): AppConfig {
@@ -69,7 +85,8 @@ object AppConfigStore {
             frontCamera = values["frontCamera"]?.toBooleanStrictOrNull() ?: defaults.frontCamera,
             fps = values["fps"]?.toIntOrNull() ?: defaults.fps,
             smoothing = values["smoothing"]?.toIntOrNull() ?: defaults.smoothing,
-            bundle = values["bundle"]?.toBooleanStrictOrNull() ?: defaults.bundle
+            bundle = values["bundle"]?.toBooleanStrictOrNull() ?: defaults.bundle,
+            modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key)
         )
     }
 

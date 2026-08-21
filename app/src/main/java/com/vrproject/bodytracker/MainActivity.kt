@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
 import android.util.Size
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.SeekBar
 import android.widget.Toast
 import java.text.SimpleDateFormat
@@ -66,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var cachedPort: Int? = null
     @Volatile private var cachedHeightMeters = 1.70f
     @Volatile private var cachedFps = 60
+    @Volatile private var selectedModelType = TrackerModelType.MEDIAPIPE_LITE
 
     private var useFrontCamera = false
     private var invertCameraView = false
@@ -94,6 +97,7 @@ class MainActivity : AppCompatActivity() {
 
         poseTracker = PoseTracker(
             context = this,
+            modelTypeProvider = { selectedModelType },
             targetFpsProvider = { cachedFps },
             onCheckShouldCaptureBitmap = { mjpegServer?.hasClients() == true }
         ) { rawFrame, rawBitmap, rotationDegrees ->
@@ -207,6 +211,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUi() {
+        val modelTypes = TrackerModelType.values()
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelTypes.map { it.displayName })
+        binding.modelSpinner.adapter = adapter
+        binding.modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                selectedModelType = modelTypes[position]
+                persistCurrentConfig()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
         val cacheUpdateListener = {
             updateCachedValues()
             updateButtonState()
@@ -310,6 +325,7 @@ class MainActivity : AppCompatActivity() {
         binding.invertCameraSwitch.isEnabled = enabled
         binding.smoothingSeekBar.isEnabled = enabled
         binding.bundleSwitch.isEnabled = enabled
+        binding.modelSpinner.isEnabled = enabled
 
         if (enabled) {
             updateButtonState()
@@ -365,6 +381,12 @@ class MainActivity : AppCompatActivity() {
         binding.bundleSwitch.isChecked = config.bundle
         binding.smoothingLabel.text = getString(R.string.smoothing_label_value, config.smoothing)
 
+        selectedModelType = config.modelType
+        val index = TrackerModelType.values().indexOf(config.modelType)
+        if (index >= 0) {
+            binding.modelSpinner.setSelection(index)
+        }
+
         updateCachedValues()
         updateButtonState()
         if (cameraProvider != null) {
@@ -380,7 +402,8 @@ class MainActivity : AppCompatActivity() {
             frontCamera = binding.frontCameraSwitch.isChecked,
             fps = cachedFps,
             smoothing = binding.smoothingSeekBar.progress,
-            bundle = binding.bundleSwitch.isChecked
+            bundle = binding.bundleSwitch.isChecked,
+            modelType = selectedModelType
         )
         savedConfig = config
         AppConfigStore.save(this, config)
