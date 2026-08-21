@@ -154,10 +154,8 @@ class MainActivity : AppCompatActivity() {
                 isFrontCamera = selectedCameraItem?.isFront ?: false
             )
 
-            val useBundle = binding.bundleSwitch.isChecked
-
             appScope.launch(Dispatchers.IO) {
-                oscSender.send(host, port, messages, useBundle)
+                oscSender.send(host, port, messages, bundle = true)
             }
 
             updateSendFps(processedFrame.timestampMs)
@@ -327,8 +325,6 @@ class MainActivity : AppCompatActivity() {
             binding.statusText.text = getString(R.string.status_settings_reset)
         }
 
-        binding.bundleSwitch.setOnCheckedChangeListener { _, _ -> persistCurrentConfig() }
-
         binding.toggleUiButton.text = getString(R.string.hide_ui)
         binding.statusText.text = getString(R.string.status_idle)
         updateButtonState()
@@ -343,7 +339,6 @@ class MainActivity : AppCompatActivity() {
         binding.fpsEditText.isEnabled = enabled
         binding.invertCameraSwitch.isEnabled = enabled
         binding.smoothingSeekBar.isEnabled = enabled
-        binding.bundleSwitch.isEnabled = enabled
         binding.modelSpinner.isEnabled = enabled
         binding.cameraSpinner.isEnabled = enabled
 
@@ -396,7 +391,6 @@ class MainActivity : AppCompatActivity() {
         binding.heightEditText.setText(config.heightMeters.toString())
         binding.fpsEditText.setText(config.fps.toString())
         binding.smoothingSeekBar.progress = config.smoothing
-        binding.bundleSwitch.isChecked = config.bundle
         binding.smoothingLabel.text = getString(R.string.smoothing_label_value, config.smoothing)
 
         selectedModelType = config.modelType
@@ -419,7 +413,6 @@ class MainActivity : AppCompatActivity() {
             heightMeters = cachedHeightMeters,
             fps = cachedFps,
             smoothing = binding.smoothingSeekBar.progress,
-            bundle = binding.bundleSwitch.isChecked,
             modelType = selectedModelType,
             cameraId = selectedCameraItem?.id ?: ""
         )
@@ -615,8 +608,8 @@ class MainActivity : AppCompatActivity() {
             binding.jointOverlay.setFrameJoints(
                 items = frame.joints,
                 shouldMirrorX = invertCameraView || (selectedCameraItem?.isFront == true),
-                sourceWidth = frame.imageWidth,
-                sourceHeight = frame.imageHeight
+                sourceWidth = binding.jointOverlay.currentSourceWidth,
+                sourceHeight = binding.jointOverlay.currentSourceHeight
             )
         }
     }

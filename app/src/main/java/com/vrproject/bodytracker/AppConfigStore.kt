@@ -22,7 +22,6 @@ data class AppConfig(
     val heightMeters: Float,
     val fps: Int,
     val smoothing: Int,
-    val bundle: Boolean,
     val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE,
     val cameraId: String = ""
 )
@@ -37,7 +36,6 @@ object AppConfigStore {
         heightMeters = 1.70f,
         fps = 60,
         smoothing = 35,
-        bundle = true,
         modelType = TrackerModelType.MEDIAPIPE_LITE,
         cameraId = ""
     )
@@ -71,7 +69,6 @@ object AppConfigStore {
         "heightMeters" to config.heightMeters.toString(),
         "fps" to config.fps.toString(),
         "smoothing" to config.smoothing.toString(),
-        "bundle" to config.bundle.toString(),
         "modelType" to config.modelType.key,
         "cameraId" to config.cameraId
     )
@@ -84,7 +81,6 @@ object AppConfigStore {
             heightMeters = values["heightMeters"]?.toFloatOrNull() ?: defaults.heightMeters,
             fps = values["fps"]?.toIntOrNull() ?: defaults.fps,
             smoothing = values["smoothing"]?.toIntOrNull() ?: defaults.smoothing,
-            bundle = values["bundle"]?.toBooleanStrictOrNull() ?: defaults.bundle,
             modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key),
             cameraId = values["cameraId"] ?: defaults.cameraId
         )

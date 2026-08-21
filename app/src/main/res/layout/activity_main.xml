@@ -198,13 +198,6 @@
                 android:text="@string/label_invert_camera"
                 android:textColor="#FFFFFF" />
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/bundleSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/label_osc_bundle"
-                android:textColor="#FFFFFF" />
-
             <Button
                 android:id="@+id/calibrateButton"
                 android:layout_width="match_parent"
