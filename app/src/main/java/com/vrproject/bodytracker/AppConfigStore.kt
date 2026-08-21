@@ -20,11 +20,11 @@ data class AppConfig(
     val ip: String,
     val port: Int,
     val heightMeters: Float,
-    val frontCamera: Boolean,
     val fps: Int,
     val smoothing: Int,
     val bundle: Boolean,
-    val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE
+    val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE,
+    val cameraId: String = ""
 )
 
 object AppConfigStore {
@@ -35,11 +35,11 @@ object AppConfigStore {
         ip = "192.168.1.10",
         port = 9000,
         heightMeters = 1.70f,
-        frontCamera = false,
         fps = 60,
         smoothing = 35,
         bundle = true,
-        modelType = TrackerModelType.MEDIAPIPE_LITE
+        modelType = TrackerModelType.MEDIAPIPE_LITE,
+        cameraId = ""
     )
 
     fun load(context: Context): AppConfig {
@@ -69,11 +69,11 @@ object AppConfigStore {
         "ip" to config.ip,
         "port" to config.port.toString(),
         "heightMeters" to config.heightMeters.toString(),
-        "frontCamera" to config.frontCamera.toString(),
         "fps" to config.fps.toString(),
         "smoothing" to config.smoothing.toString(),
         "bundle" to config.bundle.toString(),
-        "modelType" to config.modelType.key
+        "modelType" to config.modelType.key,
+        "cameraId" to config.cameraId
     )
 
     fun fromMap(values: Map<String, String>): AppConfig {
@@ -82,11 +82,11 @@ object AppConfigStore {
             ip = values["ip"] ?: defaults.ip,
             port = values["port"]?.toIntOrNull() ?: defaults.port,
             heightMeters = values["heightMeters"]?.toFloatOrNull() ?: defaults.heightMeters,
-            frontCamera = values["frontCamera"]?.toBooleanStrictOrNull() ?: defaults.frontCamera,
             fps = values["fps"]?.toIntOrNull() ?: defaults.fps,
             smoothing = values["smoothing"]?.toIntOrNull() ?: defaults.smoothing,
             bundle = values["bundle"]?.toBooleanStrictOrNull() ?: defaults.bundle,
-            modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key)
+            modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key),
+            cameraId = values["cameraId"] ?: defaults.cameraId
         )
     }
 

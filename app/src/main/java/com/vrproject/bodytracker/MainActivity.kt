@@ -17,6 +17,7 @@ import java.util.concurrent.Executors
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -36,6 +37,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
+
+data class CameraItem(
+    val id: String,
+    val name: String,
+    val isFront: Boolean,
+    val cameraInfo: CameraInfo
+) {
+    override fun toString(): String = name
+}
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -70,7 +80,9 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var cachedFps = 60
     @Volatile private var selectedModelType = TrackerModelType.MEDIAPIPE_LITE
 
-    private var useFrontCamera = false
+    private val availableCameras = mutableListOf<CameraItem>()
+    private var selectedCameraItem: CameraItem? = null
+
     private var invertCameraView = false
     private var pendingCalibration = false
     private var uiVisible = true
@@ -139,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             val messages = PoseOscMapper.toMessages(
                 frame = processedFrame,
                 estimatedHeightMeters = cachedHeightMeters,
-                isFrontCamera = useFrontCamera
+                isFrontCamera = selectedCameraItem?.isFront ?: false
             )
 
             val useBundle = binding.bundleSwitch.isChecked
@@ -212,12 +224,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupUi() {
         val modelTypes = TrackerModelType.values()
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelTypes.map { it.displayName })
-        binding.modelSpinner.adapter = adapter
+        val modelAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelTypes.map { it.displayName })
+        binding.modelSpinner.adapter = modelAdapter
         binding.modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 selectedModelType = modelTypes[position]
                 persistCurrentConfig()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        binding.cameraSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position in availableCameras.indices) {
+                    val item = availableCameras[position]
+                    if (selectedCameraItem?.id != item.id) {
+                        selectedCameraItem = item
+                        bindUseCases()
+                        persistCurrentConfig()
+                    }
+                }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -233,17 +259,11 @@ class MainActivity : AppCompatActivity() {
         binding.heightEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.fpsEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
 
-        binding.frontCameraSwitch.setOnCheckedChangeListener { _, checked ->
-            useFrontCamera = checked
-            bindUseCases()
-            persistCurrentConfig()
-        }
-
         binding.invertCameraSwitch.setOnCheckedChangeListener { _, checked ->
             invertCameraView = checked
             binding.jointOverlay.setFrameJoints(
                 items = binding.jointOverlay.currentFrameJoints,
-                shouldMirrorX = invertCameraView || useFrontCamera,
+                shouldMirrorX = invertCameraView || (selectedCameraItem?.isFront == true),
                 sourceWidth = binding.jointOverlay.currentSourceWidth,
                 sourceHeight = binding.jointOverlay.currentSourceHeight
             )
@@ -321,11 +341,11 @@ class MainActivity : AppCompatActivity() {
         binding.portEditText.isEnabled = enabled
         binding.heightEditText.isEnabled = enabled
         binding.fpsEditText.isEnabled = enabled
-        binding.frontCameraSwitch.isEnabled = enabled
         binding.invertCameraSwitch.isEnabled = enabled
         binding.smoothingSeekBar.isEnabled = enabled
         binding.bundleSwitch.isEnabled = enabled
         binding.modelSpinner.isEnabled = enabled
+        binding.cameraSpinner.isEnabled = enabled
 
         if (enabled) {
             updateButtonState()
@@ -374,8 +394,6 @@ class MainActivity : AppCompatActivity() {
         binding.ipEditText.setText(config.ip)
         binding.portEditText.setText(config.port.toString())
         binding.heightEditText.setText(config.heightMeters.toString())
-        useFrontCamera = config.frontCamera
-        binding.frontCameraSwitch.isChecked = config.frontCamera
         binding.fpsEditText.setText(config.fps.toString())
         binding.smoothingSeekBar.progress = config.smoothing
         binding.bundleSwitch.isChecked = config.bundle
@@ -399,11 +417,11 @@ class MainActivity : AppCompatActivity() {
             ip = cachedHost.ifEmpty { "192.168.1.10" },
             port = cachedPort ?: 9000,
             heightMeters = cachedHeightMeters,
-            frontCamera = binding.frontCameraSwitch.isChecked,
             fps = cachedFps,
             smoothing = binding.smoothingSeekBar.progress,
             bundle = binding.bundleSwitch.isChecked,
-            modelType = selectedModelType
+            modelType = selectedModelType,
+            cameraId = selectedCameraItem?.id ?: ""
         )
         savedConfig = config
         AppConfigStore.save(this, config)
@@ -429,14 +447,45 @@ class MainActivity : AppCompatActivity() {
         providerFuture.addListener(
             {
                 cameraProvider = providerFuture.get()
+                queryAvailableCameras()
                 bindUseCases()
             },
             ContextCompat.getMainExecutor(this)
         )
     }
 
+    private fun queryAvailableCameras() {
+        val provider = cameraProvider ?: return
+        availableCameras.clear()
+
+        val cameraInfos = provider.availableCameraInfos
+        for (info in cameraInfos) {
+            val cam2Info = Camera2CameraInfo.from(info)
+            val camId = cam2Info.getCameraId()
+            val lensFacing = info.lensFacing
+            val isFront = lensFacing == CameraSelector.LENS_FACING_FRONT
+            val label = if (isFront) "Front Cam ($camId)" else "Back Cam ($camId)"
+
+            availableCameras.add(CameraItem(camId, label, isFront, info))
+        }
+
+        val cameraAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, availableCameras)
+        binding.cameraSpinner.adapter = cameraAdapter
+
+        val savedId = savedConfig.cameraId
+        val matchIndex = availableCameras.indexOfFirst { it.id == savedId }
+        if (matchIndex >= 0) {
+            selectedCameraItem = availableCameras[matchIndex]
+            binding.cameraSpinner.setSelection(matchIndex)
+        } else if (availableCameras.isNotEmpty()) {
+            selectedCameraItem = availableCameras[0]
+            binding.cameraSpinner.setSelection(0)
+        }
+    }
+
     private fun bindUseCases() {
         val provider = cameraProvider ?: return
+        val currentCamera = selectedCameraItem ?: return
 
         val preview = Preview.Builder().build().also {
             it.surfaceProvider = binding.previewView.surfaceProvider
@@ -460,7 +509,13 @@ class MainActivity : AppCompatActivity() {
             }
 
         provider.unbindAll()
-        val selector = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+
+        val selector = CameraSelector.Builder()
+            .addCameraFilter { cameras ->
+                cameras.filter { Camera2CameraInfo.from(it).getCameraId() == currentCamera.id }
+            }
+            .build()
+
         val camera = provider.bindToLifecycle(this, selector, preview, analysis)
 
         val camera2Info = Camera2CameraInfo.from(camera.cameraInfo)
@@ -559,7 +614,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             binding.jointOverlay.setFrameJoints(
                 items = frame.joints,
-                shouldMirrorX = invertCameraView || useFrontCamera,
+                shouldMirrorX = invertCameraView || (selectedCameraItem?.isFront == true),
                 sourceWidth = frame.imageWidth,
                 sourceHeight = frame.imageHeight
             )
@@ -601,7 +656,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val host = cachedHost
             val port = cachedPort ?: 0
-            val cameraName = if (useFrontCamera) getString(R.string.camera_front) else getString(R.string.camera_back)
+            val cameraName = selectedCameraItem?.name ?: "Unknown"
 
             val statusText = if (coverage.complete) {
                 getString(R.string.status_streaming_info, frame.joints.size, host, port, cameraName)

@@ -82,6 +82,22 @@
                 android:background="#33FFFFFF"
                 android:textColor="#FFFFFF" />
 
+            <!-- PHYSICAL CAMERA SELECTOR -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Select Device Camera"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <Spinner
+                android:id="@+id/cameraSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#33FFFFFF"
+                android:textColor="#FFFFFF" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -164,18 +180,12 @@
                 android:layout_height="wrap_content"
                 android:max="95" />
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/frontCameraSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/label_use_front_camera"
-                android:textColor="#FFFFFF" />
-
             <TextView
                 android:id="@+id/cameraLevelText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
                 android:text="@string/label_camera_checking"
                 android:textColor="#AAAAAA"
