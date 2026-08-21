@@ -22,6 +22,7 @@ data class AppConfig(
     val heightMeters: Float,
     val fps: Int,
     val smoothing: Int,
+    val invertCamera: Boolean = false,
     val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE,
     val cameraId: String = ""
 )
@@ -36,6 +37,7 @@ object AppConfigStore {
         heightMeters = 1.70f,
         fps = 60,
         smoothing = 35,
+        invertCamera = false,
         modelType = TrackerModelType.MEDIAPIPE_LITE,
         cameraId = ""
     )
@@ -69,6 +71,7 @@ object AppConfigStore {
         "heightMeters" to config.heightMeters.toString(),
         "fps" to config.fps.toString(),
         "smoothing" to config.smoothing.toString(),
+        "invertCamera" to config.invertCamera.toString(),
         "modelType" to config.modelType.key,
         "cameraId" to config.cameraId
     )
@@ -81,6 +84,7 @@ object AppConfigStore {
             heightMeters = values["heightMeters"]?.toFloatOrNull() ?: defaults.heightMeters,
             fps = values["fps"]?.toIntOrNull() ?: defaults.fps,
             smoothing = values["smoothing"]?.toIntOrNull() ?: defaults.smoothing,
+            invertCamera = values["invertCamera"]?.toBooleanStrictOrNull() ?: defaults.invertCamera,
             modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key),
             cameraId = values["cameraId"] ?: defaults.cameraId
         )

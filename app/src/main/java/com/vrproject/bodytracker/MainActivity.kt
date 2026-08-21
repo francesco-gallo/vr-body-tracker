@@ -148,10 +148,12 @@ class MainActivity : AppCompatActivity() {
                 return@PoseTracker
             }
 
+            val isFront = selectedCameraItem?.isFront ?: false
+
             val messages = PoseOscMapper.toMessages(
                 frame = processedFrame,
                 estimatedHeightMeters = cachedHeightMeters,
-                isFrontCamera = selectedCameraItem?.isFront ?: false
+                isFrontCamera = isFront
             )
 
             appScope.launch(Dispatchers.IO) {
@@ -259,12 +261,9 @@ class MainActivity : AppCompatActivity() {
 
         binding.invertCameraSwitch.setOnCheckedChangeListener { _, checked ->
             invertCameraView = checked
-            binding.jointOverlay.setFrameJoints(
-                items = binding.jointOverlay.currentFrameJoints,
-                shouldMirrorX = invertCameraView || (selectedCameraItem?.isFront == true),
-                sourceWidth = binding.jointOverlay.currentSourceWidth,
-                sourceHeight = binding.jointOverlay.currentSourceHeight
-            )
+            val isFront = selectedCameraItem?.isFront ?: false
+            val shouldMirrorOverlay = invertCameraView xor isFront
+            binding.jointOverlay.setMirrorX(shouldMirrorOverlay)
             persistCurrentConfig()
         }
 
@@ -391,6 +390,8 @@ class MainActivity : AppCompatActivity() {
         binding.heightEditText.setText(config.heightMeters.toString())
         binding.fpsEditText.setText(config.fps.toString())
         binding.smoothingSeekBar.progress = config.smoothing
+        invertCameraView = config.invertCamera
+        binding.invertCameraSwitch.isChecked = config.invertCamera
         binding.smoothingLabel.text = getString(R.string.smoothing_label_value, config.smoothing)
 
         selectedModelType = config.modelType
@@ -413,6 +414,7 @@ class MainActivity : AppCompatActivity() {
             heightMeters = cachedHeightMeters,
             fps = cachedFps,
             smoothing = binding.smoothingSeekBar.progress,
+            invertCamera = binding.invertCameraSwitch.isChecked,
             modelType = selectedModelType,
             cameraId = selectedCameraItem?.id ?: ""
         )
@@ -605,11 +607,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateOverlay(frame: PoseFrame) {
         runOnUiThread {
+            val isFront = selectedCameraItem?.isFront ?: false
+            val shouldMirrorOverlay = invertCameraView xor isFront
             binding.jointOverlay.setFrameJoints(
                 items = frame.joints,
-                shouldMirrorX = invertCameraView || (selectedCameraItem?.isFront == true),
-                sourceWidth = binding.jointOverlay.currentSourceWidth,
-                sourceHeight = binding.jointOverlay.currentSourceHeight
+                shouldMirrorX = shouldMirrorOverlay,
+                sourceWidth = frame.imageWidth,
+                sourceHeight = frame.imageHeight
             )
         }
     }

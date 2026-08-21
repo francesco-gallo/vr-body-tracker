@@ -41,11 +41,20 @@ class JointOverlayView @JvmOverloads constructor(
         sourceWidth: Int,
         sourceHeight: Int
     ) {
+        val mirrorChanged = mirrorX != shouldMirrorX
         currentFrameJoints = items
         mirrorX = shouldMirrorX
         currentSourceWidth = if (sourceWidth > 0) sourceWidth else 1
         currentSourceHeight = if (sourceHeight > 0) sourceHeight else 1
+
         invalidate()
+    }
+
+    fun setMirrorX(shouldMirrorX: Boolean) {
+        if (mirrorX != shouldMirrorX) {
+            mirrorX = shouldMirrorX
+            invalidate()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -82,7 +91,6 @@ class JointOverlayView @JvmOverloads constructor(
             )
         }
 
-        // Disegno delle linee dello scheletro a schermo (senza testa e con bacino centrale)
         for ((a, b) in CONNECTIONS) {
             val ja = byName[a]
             val jb = byName[b]
@@ -95,7 +103,6 @@ class JointOverlayView @JvmOverloads constructor(
             }
         }
 
-        // Disegno dei singoli punti e degli assi 3D
         val axisLength = 30f
         for (joint in currentFrameJoints) {
             if (joint.visibility > 0.3f) {
