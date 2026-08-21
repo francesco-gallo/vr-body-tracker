@@ -54,7 +54,6 @@ class PoseTracker(
         val targetFps = targetFpsProvider().coerceIn(1, 60)
         val minIntervalMs = 1000L / targetFps
 
-        // Throttle: se non è passato abbastanza tempo dall'ultimo frame elaborato, scarta il frame
         if (now - lastAnalyzedTimeMs < minIntervalMs) {
             imageProxy.close()
             return
@@ -111,21 +110,24 @@ class PoseTracker(
     private fun convertPose(pose: Pose, width: Float, height: Float): PoseFrame {
         val joints = mutableListOf<JointSample>()
 
-        var headXSum = 0f
-        var headYSum = 0f
-        var headZSum = 0f
-        var headVisSum = 0f
-        var headCount = 0
+        // Usa direttamente il NASO come singolo punto centrale per la testa (evita di iterare/mediare su occhi e orecchie)
+        val noseLandmark = pose.getPoseLandmark(PoseLandmark.NOSE)
+        if (noseLandmark != null) {
+            val p2 = noseLandmark.position
+            val p3 = noseLandmark.position3D
+            joints += JointSample(
+                name = "head",
+                x = p2.x / width,
+                y = p2.y / height,
+                z = p3.z,
+                visibility = noseLandmark.inFrameLikelihood
+            )
+        }
 
+        // Estrazione diretta dei soli landmark del corpo necessari
         for (landmark in pose.allPoseLandmarks) {
             val type = landmark.landmarkType
-            if (type in HEAD_LANDMARK_TYPES) {
-                headXSum += landmark.position.x / width
-                headYSum += landmark.position.y / height
-                headZSum += landmark.position3D.z
-                headVisSum += landmark.inFrameLikelihood
-                headCount++
-            } else if (type in BODY_LANDMARK_TYPES) {
+            if (type in BODY_LANDMARK_TYPES) {
                 val p2 = landmark.position
                 val p3 = landmark.position3D
                 joints += JointSample(
@@ -138,16 +140,6 @@ class PoseTracker(
             }
         }
 
-        if (headCount > 0) {
-            joints += JointSample(
-                name = "head",
-                x = headXSum / headCount,
-                y = headYSum / headCount,
-                z = headZSum / headCount,
-                visibility = headVisSum / headCount
-            )
-        }
-
         return PoseFrame(
             timestampMs = System.currentTimeMillis(),
             imageWidth = width.toInt(),
@@ -157,14 +149,6 @@ class PoseTracker(
     }
 
     companion object {
-        private val HEAD_LANDMARK_TYPES: Set<Int> = setOf(
-            PoseLandmark.NOSE,
-            PoseLandmark.LEFT_EYE,
-            PoseLandmark.RIGHT_EYE,
-            PoseLandmark.LEFT_EAR,
-            PoseLandmark.RIGHT_EAR
-        )
-
         private val BODY_LANDMARK_TYPES: Set<Int> = setOf(
             PoseLandmark.LEFT_SHOULDER,
             PoseLandmark.RIGHT_SHOULDER,
