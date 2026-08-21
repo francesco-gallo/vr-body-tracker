@@ -53,7 +53,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.1")
     implementation("androidx.camera:camera-view:1.4.1")
 
-    implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+    implementation("com.google.mediapipe:tasks-vision:1.0.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("org.nanohttpd:nanohttpd:2.3.1")

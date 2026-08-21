@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         startMjpegServer()
 
         poseTracker = PoseTracker(
+            context = this,
             targetFpsProvider = { cachedFps },
             onCheckShouldCaptureBitmap = { mjpegServer?.hasClients() == true }
         ) { rawFrame, rawBitmap, rotationDegrees ->

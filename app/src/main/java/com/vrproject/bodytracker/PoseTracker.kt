@@ -1,5 +1,6 @@
 package com.vrproject.bodytracker
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -9,11 +10,13 @@ import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.pose.Pose
-import com.google.mlkit.vision.pose.PoseDetection
-import com.google.mlkit.vision.pose.PoseLandmark
-import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.core.Delegate
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -33,6 +36,7 @@ data class PoseFrame(
 )
 
 class PoseTracker(
+    context: Context,
     private val targetFpsProvider: () -> Int = { 60 },
     private val onCheckShouldCaptureBitmap: (() -> Boolean)? = null,
     private val onFrame: (PoseFrame, Bitmap?, Int) -> Unit
@@ -41,12 +45,30 @@ class PoseTracker(
     private val isProcessing = AtomicBoolean(false)
     @Volatile private var lastAnalyzedTimeMs = 0L
 
-    private val detector by lazy {
-        val options = PoseDetectorOptions.Builder()
-            .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+    private val poseLandmarker: PoseLandmarker by lazy {
+        val baseOptionsBuilder = BaseOptions.builder()
+            .setModelAssetPath("pose_landmarker_full.task")
+            .setDelegate(Delegate.GPU)
+
+        val options = PoseLandmarker.PoseLandmarkerOptions.builder()
+            .setBaseOptions(baseOptionsBuilder.build())
+            .setMinPoseDetectionConfidence(0.5f)
+            .setMinPosePresenceConfidence(0.5f)
+            .setMinTrackingConfidence(0.5f)
+            .setRunningMode(RunningMode.LIVE_STREAM)
+            .setResultListener { result, _ ->
+                handleResult(result)
+            }
+            .setErrorListener { _ ->
+                isProcessing.set(false)
+            }
             .build()
-        PoseDetection.getClient(options)
+
+        PoseLandmarker.createFromOptions(context, options)
     }
+
+    private var currentRawBitmap: Bitmap? = null
+    private var currentRotationDegrees: Int = 0
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
@@ -64,24 +86,12 @@ class PoseTracker(
             return
         }
 
-        val mediaImage = imageProxy.image
-        if (mediaImage == null) {
-            isProcessing.set(false)
-            imageProxy.close()
-            return
-        }
-
         lastAnalyzedTimeMs = now
-
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
-
-        val isRotated = rotationDegrees == 90 || rotationDegrees == 270
-        val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
-        val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
+        currentRotationDegrees = rotationDegrees
 
         val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
-        val rawBitmap = if (shouldCaptureBitmap) {
+        currentRawBitmap = if (shouldCaptureBitmap) {
             try {
                 imageProxy.toBitmap()
             } catch (_: Exception) {
@@ -89,94 +99,99 @@ class PoseTracker(
             }
         } else null
 
-        detector.process(image)
-            .addOnSuccessListener { pose ->
-                val poseFrame = convertPose(pose, width, height)
-                onFrame(poseFrame, rawBitmap, rotationDegrees)
-            }
-            .addOnFailureListener {
-                rawBitmap?.recycle()
-            }
-            .addOnCompleteListener {
-                isProcessing.set(false)
-                imageProxy.close()
-            }
-    }
-
-    fun close() {
-        detector.close()
-    }
-
-    private fun convertPose(pose: Pose, width: Float, height: Float): PoseFrame {
-        val joints = mutableListOf<JointSample>()
-
-        // Usa direttamente il NASO come singolo punto centrale per la testa (evita di iterare/mediare su occhi e orecchie)
-        val noseLandmark = pose.getPoseLandmark(PoseLandmark.NOSE)
-        if (noseLandmark != null) {
-            val p2 = noseLandmark.position
-            val p3 = noseLandmark.position3D
-            joints += JointSample(
-                name = "head",
-                x = p2.x / width,
-                y = p2.y / height,
-                z = p3.z,
-                visibility = noseLandmark.inFrameLikelihood
-            )
+        val rawBitmap = try {
+            imageProxy.toBitmap()
+        } catch (_: Exception) {
+            isProcessing.set(false)
+            imageProxy.close()
+            return
+        } finally {
+            imageProxy.close()
         }
 
-        // Estrazione diretta dei soli landmark del corpo necessari
-        for (landmark in pose.allPoseLandmarks) {
-            val type = landmark.landmarkType
-            if (type in BODY_LANDMARK_TYPES) {
-                val p2 = landmark.position
-                val p3 = landmark.position3D
+        val rotatedBitmap = if (rotationDegrees != 0) {
+            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+            Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
+                if (it != rawBitmap) rawBitmap.recycle()
+            }
+        } else {
+            rawBitmap
+        }
+
+        val mpImage: MPImage = BitmapImageBuilder(rotatedBitmap).build()
+        poseLandmarker.detectAsync(mpImage, now)
+    }
+
+    private fun handleResult(result: PoseLandmarkerResult) {
+        try {
+            val poseFrame = convertResult(result)
+            onFrame(poseFrame, currentRawBitmap, currentRotationDegrees)
+        } finally {
+            currentRawBitmap = null
+            isProcessing.set(false)
+        }
+    }
+
+    private fun convertResult(result: PoseLandmarkerResult): PoseFrame {
+        val joints = mutableListOf<JointSample>()
+        val landmarks = result.landmarks().firstOrNull()
+        val worldLandmarks = result.worldLandmarks().firstOrNull()
+
+        if (landmarks != null) {
+            if (landmarks.size > 0) {
+                val nose = landmarks[0]
+                val worldNose = worldLandmarks?.getOrNull(0)
                 joints += JointSample(
-                    name = LANDMARK_NAMES[type] ?: "type_$type",
-                    x = p2.x / width,
-                    y = p2.y / height,
-                    z = p3.z,
-                    visibility = landmark.inFrameLikelihood
+                    name = "head",
+                    x = nose.x(),
+                    y = nose.y(),
+                    z = worldNose?.z() ?: (nose.z() * 1000f),
+                    visibility = nose.presence().orElse(0.5f)
                 )
+            }
+
+            for ((index, name) in LANDMARK_MAPPING) {
+                if (index < landmarks.size) {
+                    val lm = landmarks[index]
+                    val worldLm = worldLandmarks?.getOrNull(index)
+
+                    joints += JointSample(
+                        name = name,
+                        x = lm.x(),
+                        y = lm.y(),
+                        z = worldLm?.z() ?: (lm.z() * 1000f),
+                        visibility = lm.presence().orElse(0.5f)
+                    )
+                }
             }
         }
 
         return PoseFrame(
             timestampMs = System.currentTimeMillis(),
-            imageWidth = width.toInt(),
-            imageHeight = height.toInt(),
+            imageWidth = 480,
+            imageHeight = 640,
             joints = joints
         )
     }
 
-    companion object {
-        private val BODY_LANDMARK_TYPES: Set<Int> = setOf(
-            PoseLandmark.LEFT_SHOULDER,
-            PoseLandmark.RIGHT_SHOULDER,
-            PoseLandmark.LEFT_ELBOW,
-            PoseLandmark.RIGHT_ELBOW,
-            PoseLandmark.LEFT_WRIST,
-            PoseLandmark.RIGHT_WRIST,
-            PoseLandmark.LEFT_HIP,
-            PoseLandmark.RIGHT_HIP,
-            PoseLandmark.LEFT_KNEE,
-            PoseLandmark.RIGHT_KNEE,
-            PoseLandmark.LEFT_ANKLE,
-            PoseLandmark.RIGHT_ANKLE
-        )
+    fun close() {
+        poseLandmarker.close()
+    }
 
-        private val LANDMARK_NAMES: Map<Int, String> = mapOf(
-            PoseLandmark.LEFT_SHOULDER to "left_shoulder",
-            PoseLandmark.RIGHT_SHOULDER to "right_shoulder",
-            PoseLandmark.LEFT_ELBOW to "left_elbow",
-            PoseLandmark.RIGHT_ELBOW to "right_elbow",
-            PoseLandmark.LEFT_WRIST to "left_wrist",
-            PoseLandmark.RIGHT_WRIST to "right_wrist",
-            PoseLandmark.LEFT_HIP to "left_hip",
-            PoseLandmark.RIGHT_HIP to "right_hip",
-            PoseLandmark.LEFT_KNEE to "left_knee",
-            PoseLandmark.RIGHT_KNEE to "right_knee",
-            PoseLandmark.LEFT_ANKLE to "left_ankle",
-            PoseLandmark.RIGHT_ANKLE to "right_ankle"
+    companion object {
+        private val LANDMARK_MAPPING = mapOf(
+            11 to "left_shoulder",
+            12 to "right_shoulder",
+            13 to "left_elbow",
+            14 to "right_elbow",
+            15 to "left_wrist",
+            16 to "right_wrist",
+            23 to "left_hip",
+            24 to "right_hip",
+            25 to "left_knee",
+            26 to "right_knee",
+            27 to "left_ankle",
+            28 to "right_ankle"
         )
 
         fun renderProcessedWebFrame(
