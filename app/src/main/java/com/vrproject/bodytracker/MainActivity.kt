@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         startMjpegServer()
 
         poseTracker = PoseTracker(
+            targetFpsProvider = { cachedFps },
             onCheckShouldCaptureBitmap = { mjpegServer?.hasClients() == true }
         ) { rawFrame, rawBitmap, rotationDegrees ->
             updateCameraCaptureFps(rawFrame.timestampMs)
@@ -495,7 +496,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun canSendNow(nowMs: Long): Boolean {
-        val fps = cachedFps.coerceIn(1, 120)
+        val fps = cachedFps.coerceIn(1, 60)
         val minInterval = 1000L / fps
         if (nowMs - lastSentAtMs < minInterval) {
             return false
@@ -506,7 +507,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun parseFps(): Int? {
         val value = binding.fpsEditText.text?.toString()?.trim()?.toIntOrNull() ?: return null
-        return if (value in 1..120) value else null
+        return if (value in 1..60) value else null
     }
 
     private fun parseHeightMeters(): Float {

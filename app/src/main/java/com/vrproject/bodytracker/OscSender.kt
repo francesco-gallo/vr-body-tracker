@@ -2,7 +2,6 @@ package com.vrproject.bodytracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -16,13 +15,14 @@ data class OscMessageData(
 
 class OscSender {
     private val socket = DatagramSocket()
+    private val buffer = ByteBuffer.allocate(8192).order(ByteOrder.BIG_ENDIAN)
 
     suspend fun checkEndpoint(host: String, port: Int): Boolean {
         if (host.isBlank() || port !in 1..65535) {
             return false
         }
 
-        return withContext(Dispatchers.IO) {    
+        return withContext(Dispatchers.IO) {
             try {
                 val address = InetAddress.getByName(host)
                 val probe = DatagramSocket()
@@ -49,13 +49,19 @@ class OscSender {
 
         withContext(Dispatchers.IO) {
             val address = InetAddress.getByName(host)
-            if (bundle) {
-                val payload = OscEncoding.encodeBundle(messages)
-                socket.send(DatagramPacket(payload, payload.size, address, port))
-            } else {
-                for (message in messages) {
-                    val payload = OscEncoding.encodeMessage(message)
-                    socket.send(DatagramPacket(payload, payload.size, address, port))
+            synchronized(buffer) {
+                buffer.clear()
+                if (bundle) {
+                    OscEncoding.encodeBundle(messages, buffer)
+                    val length = buffer.position()
+                    socket.send(DatagramPacket(buffer.array(), length, address, port))
+                } else {
+                    for (message in messages) {
+                        buffer.clear()
+                        OscEncoding.encodeMessage(message, buffer)
+                        val length = buffer.position()
+                        socket.send(DatagramPacket(buffer.array(), length, address, port))
+                    }
                 }
             }
         }
@@ -67,40 +73,42 @@ class OscSender {
 }
 
 private object OscEncoding {
-    fun encodeBundle(messages: List<OscMessageData>): ByteArray {
-        val stream = ByteArrayOutputStream()
-        writePaddedString(stream, "#bundle")
-        // 8-byte OSC timetag. 1 means "immediate".
-        stream.write(byteArrayOf(0, 0, 0, 0, 0, 0, 0, 1))
+
+    fun encodeBundle(messages: List<OscMessageData>, buffer: ByteBuffer) {
+        writePaddedString(buffer, "#bundle")
+        // 8-byte OSC timetag. 1 = "immediate"
+        buffer.putLong(1L)
 
         for (message in messages) {
-            val payload = encodeMessage(message)
-            writeInt(stream, payload.size)
-            stream.write(payload)
-        }
+            val sizePos = buffer.position()
+            buffer.putInt(0) // Spazio riservato per la dimensione della payload
+            val startPos = buffer.position()
 
-        return stream.toByteArray()
+            encodeMessage(message, buffer)
+
+            val endPos = buffer.position()
+            val payloadSize = endPos - startPos
+
+            // Inseriamo la dimensione calcolata prima della payload
+            buffer.putInt(sizePos, payloadSize)
+        }
     }
 
-    fun encodeMessage(message: OscMessageData): ByteArray {
-        val stream = ByteArrayOutputStream()
-
-        writePaddedString(stream, message.address)
+    fun encodeMessage(message: OscMessageData, buffer: ByteBuffer) {
+        writePaddedString(buffer, message.address)
 
         val typeTags = buildTypeTags(message.args)
-        writePaddedString(stream, typeTags)
+        writePaddedString(buffer, typeTags)
 
         for (arg in message.args) {
             when (arg) {
-                is Int -> writeInt(stream, arg)
-                is Float -> writeFloat(stream, arg)
-                is Double -> writeFloat(stream, arg.toFloat())
-                is String -> writePaddedString(stream, arg)
-                else -> writePaddedString(stream, arg.toString())
+                is Int -> buffer.putInt(arg)
+                is Float -> buffer.putFloat(arg)
+                is Double -> buffer.putFloat(arg.toFloat())
+                is String -> writePaddedString(buffer, arg)
+                else -> writePaddedString(buffer, arg.toString())
             }
         }
-
-        return stream.toByteArray()
     }
 
     private fun buildTypeTags(args: List<Any>): String {
@@ -119,30 +127,14 @@ private object OscEncoding {
         return tags.toString()
     }
 
-    private fun writePaddedString(stream: ByteArrayOutputStream, value: String) {
-        val data = value.toByteArray(Charsets.UTF_8)
-        stream.write(data)
-        stream.write(0)
+    private fun writePaddedString(buffer: ByteBuffer, value: String) {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        buffer.put(bytes)
+        buffer.put(0.toByte())
 
-        val padding = (4 - ((data.size + 1) % 4)) % 4
+        val padding = (4 - ((bytes.size + 1) % 4)) % 4
         repeat(padding) {
-            stream.write(0)
+            buffer.put(0.toByte())
         }
-    }
-
-    private fun writeInt(stream: ByteArrayOutputStream, value: Int) {
-        val bytes = ByteBuffer.allocate(4)
-            .order(ByteOrder.BIG_ENDIAN)
-            .putInt(value)
-            .array()
-        stream.write(bytes)
-    }
-
-    private fun writeFloat(stream: ByteArrayOutputStream, value: Float) {
-        val bytes = ByteBuffer.allocate(4)
-            .order(ByteOrder.BIG_ENDIAN)
-            .putFloat(value)
-            .array()
-        stream.write(bytes)
     }
 }

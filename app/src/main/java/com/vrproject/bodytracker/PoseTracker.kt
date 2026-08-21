@@ -33,11 +33,13 @@ data class PoseFrame(
 )
 
 class PoseTracker(
+    private val targetFpsProvider: () -> Int = { 60 },
     private val onCheckShouldCaptureBitmap: (() -> Boolean)? = null,
     private val onFrame: (PoseFrame, Bitmap?, Int) -> Unit
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
+    @Volatile private var lastAnalyzedTimeMs = 0L
 
     private val detector by lazy {
         val options = PoseDetectorOptions.Builder()
@@ -48,6 +50,16 @@ class PoseTracker(
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
+        val now = System.currentTimeMillis()
+        val targetFps = targetFpsProvider().coerceIn(1, 60)
+        val minIntervalMs = 1000L / targetFps
+
+        // Throttle: se non è passato abbastanza tempo dall'ultimo frame elaborato, scarta il frame
+        if (now - lastAnalyzedTimeMs < minIntervalMs) {
+            imageProxy.close()
+            return
+        }
+
         if (!isProcessing.compareAndSet(false, true)) {
             imageProxy.close()
             return
@@ -59,6 +71,8 @@ class PoseTracker(
             imageProxy.close()
             return
         }
+
+        lastAnalyzedTimeMs = now
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
         val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
@@ -216,7 +230,6 @@ class PoseTracker(
 
                 val byName = processedFrame.joints.associateBy { it.name }.toMutableMap()
 
-                // Calcolo dei punti centrali Petto (chest_mid) e Bacino (hip_mid) identici all'overlay Android
                 val ls = byName["left_shoulder"]
                 val rs = byName["right_shoulder"]
                 if (ls != null && rs != null) {
@@ -241,7 +254,6 @@ class PoseTracker(
                     )
                 }
 
-                // Disegno delle linee tra le articolazioni (identico a JointOverlayView)
                 for ((a, b) in BONES) {
                     val ja = byName[a]
                     val jb = byName[b]
@@ -250,7 +262,6 @@ class PoseTracker(
                     }
                 }
 
-                // Disegno dei soli punti visibili usati nell'app con i loro assi di coordinate 3D
                 val axisLength = 30f
                 val drawableJoints = byName.values.filter {
                     it.name in TARGET_DISPLAY_JOINTS && it.visibility > 0.3f
@@ -286,7 +297,6 @@ class PoseTracker(
             return Color.rgb(red, green, blue)
         }
 
-        // Punti specifici da mostrare a schermo identici a quelli usati dall'app
         private val TARGET_DISPLAY_JOINTS = setOf(
             "head",
             "chest_mid",
@@ -301,7 +311,6 @@ class PoseTracker(
             "right_ankle"
         )
 
-        // Connessioni scheletriche (con testa staccata e bacino centrale unico)
         private val BONES = listOf(
             "left_shoulder" to "left_elbow",
             "right_shoulder" to "right_elbow",
