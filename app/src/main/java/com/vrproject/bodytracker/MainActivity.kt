@@ -13,10 +13,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -37,7 +35,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
-@OptIn(ExperimentalCamera2Interop::class)
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
@@ -103,7 +100,6 @@ class MainActivity : AppCompatActivity() {
             val processedFrame = processFrame(rawFrame)
             updateOverlay(processedFrame)
 
-            // Web Stream Rate-Limiting: Limit JPEG compression to ~15 FPS and ONLY when a browser client is connected
             val now = System.currentTimeMillis()
             if (rawBitmap != null && mjpegServer?.hasClients() == true && (now - lastWebFrameTimeMs > 66)) {
                 lastWebFrameTimeMs = now
@@ -113,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                         processedFrame,
                         rotationDegrees
                     )
-                    rawBitmap.recycle() // Recycle native bitmap memory immediately
+                    rawBitmap.recycle()
                     if (processedJpeg != null) {
                         mjpegServer?.updateFrame(processedJpeg)
                     }
@@ -163,10 +159,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (hasCameraPermission() && cameraProvider != null) {
+            bindUseCases()
+        }
+    }
+
     override fun onPause() {
         super.onPause()
+        if (streamEnabled) {
+            streamEnabled = false
+            binding.streamButton.text = getString(R.string.start_stream)
+            binding.statusText.text = getString(R.string.status_idle)
+        }
         cameraProvider?.unbindAll()
     }
+
     override fun onDestroy() {
         super.onDestroy()
         cameraProvider?.unbindAll()
@@ -177,6 +186,7 @@ class MainActivity : AppCompatActivity() {
         poseProcessor.clear()
         stopMjpegServer()
     }
+
     private fun startMjpegServer() {
         appScope.launch(Dispatchers.IO) {
             try {
@@ -416,7 +426,6 @@ class MainActivity : AppCompatActivity() {
             )
             .build()
 
-        // Clean ImageAnalysis setup without hardcoded Camera2 AE shutter limits
         val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setResolutionSelector(resolutionSelector)
@@ -519,9 +528,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun maybeUpdateDebug() {
-        // Debug text hidden
-    }
+    private fun maybeUpdateDebug() {}
 
     private fun updateOverlay(frame: PoseFrame) {
         runOnUiThread {
@@ -579,5 +586,4 @@ class MainActivity : AppCompatActivity() {
             binding.statusText.text = statusText
         }
     }
-
 }
