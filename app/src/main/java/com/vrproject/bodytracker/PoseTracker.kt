@@ -205,17 +205,18 @@ class PoseTracker(
                 val h = mutableBitmap.height.toFloat()
 
                 val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.argb(200, 0, 255, 0)
-                    strokeWidth = 5f
+                    color = Color.argb(220, 0, 255, 120)
+                    strokeWidth = 6f
                     style = Paint.Style.STROKE
                 }
-                val axisXPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.RED; strokeWidth = 3f }
-                val axisYPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GREEN; strokeWidth = 3f }
-                val axisZPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.CYAN; strokeWidth = 3f }
+                val axisXPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.RED; strokeWidth = 4f }
+                val axisYPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GREEN; strokeWidth = 4f }
+                val axisZPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.CYAN; strokeWidth = 4f }
                 val pointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
                 val byName = processedFrame.joints.associateBy { it.name }.toMutableMap()
 
+                // Calcolo dei punti centrali Petto (chest_mid) e Bacino (hip_mid) identici all'overlay Android
                 val ls = byName["left_shoulder"]
                 val rs = byName["right_shoulder"]
                 if (ls != null && rs != null) {
@@ -240,28 +241,32 @@ class PoseTracker(
                     )
                 }
 
+                // Disegno delle linee tra le articolazioni (identico a JointOverlayView)
                 for ((a, b) in BONES) {
                     val ja = byName[a]
                     val jb = byName[b]
-                    if (ja != null && jb != null && ja.visibility > 0.25f && jb.visibility > 0.25f) {
+                    if (ja != null && jb != null && ja.visibility > 0.3f && jb.visibility > 0.3f) {
                         canvas.drawLine(ja.x * w, ja.y * h, jb.x * w, jb.y * h, linePaint)
                     }
                 }
 
-                val axisLength = 25f
-                for (joint in processedFrame.joints) {
-                    if (joint.visibility > 0.25f) {
-                        val px = joint.x * w
-                        val py = joint.y * h
+                // Disegno dei soli punti visibili usati nell'app con i loro assi di coordinate 3D
+                val axisLength = 30f
+                val drawableJoints = byName.values.filter {
+                    it.name in TARGET_DISPLAY_JOINTS && it.visibility > 0.3f
+                }
 
-                        pointPaint.color = getZColor(joint.z)
-                        canvas.drawCircle(px, py, 10f, pointPaint)
+                for (joint in drawableJoints) {
+                    val px = joint.x * w
+                    val py = joint.y * h
 
-                        canvas.drawLine(px, py, px + axisLength, py, axisXPaint)
-                        canvas.drawLine(px, py, px, py + axisLength, axisYPaint)
-                        val zOffset = (joint.z / 150f).coerceIn(-1f, 1f) * axisLength
-                        canvas.drawLine(px, py, px - zOffset, py - zOffset, axisZPaint)
-                    }
+                    pointPaint.color = getZColor(joint.z)
+                    canvas.drawCircle(px, py, 12f, pointPaint)
+
+                    canvas.drawLine(px, py, px + axisLength, py, axisXPaint)
+                    canvas.drawLine(px, py, px, py + axisLength, axisYPaint)
+                    val zOffset = (joint.z / 150f).coerceIn(-1f, 1f) * axisLength
+                    canvas.drawLine(px, py, px - zOffset, py - zOffset, axisZPaint)
                 }
 
                 val out = ByteArrayOutputStream()
@@ -281,7 +286,22 @@ class PoseTracker(
             return Color.rgb(red, green, blue)
         }
 
-        // Scheletro pulito per la vista Web (testa staccata e bacino centrale unico)
+        // Punti specifici da mostrare a schermo identici a quelli usati dall'app
+        private val TARGET_DISPLAY_JOINTS = setOf(
+            "head",
+            "chest_mid",
+            "hip_mid",
+            "left_shoulder",
+            "right_shoulder",
+            "left_elbow",
+            "right_elbow",
+            "left_knee",
+            "right_knee",
+            "left_ankle",
+            "right_ankle"
+        )
+
+        // Connessioni scheletriche (con testa staccata e bacino centrale unico)
         private val BONES = listOf(
             "left_shoulder" to "left_elbow",
             "right_shoulder" to "right_elbow",
