@@ -8,12 +8,11 @@ import kotlin.math.sqrt
 
 object PoseOscMapper {
 
-    // Soglia di visibilità minima per considerare un punto presente a schermo
     private const val VISIBILITY_THRESHOLD = 0.5f
 
     private var lastTorsoRot = Vec3(0f, 0f, 0f)
     private val lastRotations = HashMap<String, Vec3>()
-    private val reusableMessageList = ArrayList<OscMessageData>(18)
+    private val reusableMessageList = ArrayList<OscMessageData>(16)
 
     fun toMessages(
         frame: PoseFrame,
@@ -40,7 +39,6 @@ object PoseOscMapper {
         val leftShoulder = findJoint(joints, "left_shoulder")
         val rightShoulder = findJoint(joints, "right_shoulder")
 
-        val head = findJoint(joints, "head")
         val hip = averageJoint("hip_mid", leftHip, rightHip)
         val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
         val leftFoot = findJoint(joints, "left_ankle")
@@ -60,7 +58,6 @@ object PoseOscMapper {
         val xMultiplier = if (isFrontCamera) -1f else 1f
 
         val torsoRot = calculateTorsoOrientation(leftShoulder, rightShoulder, leftHip, rightHip, isFrontCamera)
-        val headRot = torsoRot
 
         val leftFootRot = rotationFromDirection("left_foot", leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightFootRot = rotationFromDirection("right_foot", rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
@@ -69,19 +66,15 @@ object PoseOscMapper {
         val leftElbowRot = rotationFromDirection("left_elbow", leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightElbowRot = rotationFromDirection("right_elbow", rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
 
-        // Invio dei 9 tracker VRChat compliant
-        appendNamedTracker(reusableMessageList, "head", head, headRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendNamedTracker(reusableMessageList, "hip", hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendNamedTracker(reusableMessageList, "chest", chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)
-
-        appendNamedTracker(reusableMessageList, "left_foot", leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendNamedTracker(reusableMessageList, "right_foot", rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier)
-
-        appendNamedTracker(reusableMessageList, "left_knee", leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendNamedTracker(reusableMessageList, "right_knee", rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier)
-
-        appendNamedTracker(reusableMessageList, "left_elbow", leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier)
-        appendNamedTracker(reusableMessageList, "right_elbow", rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)
+        // Custom ordered indices (1 through 8)
+        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)        // 1: Hip
+        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)      // 2: Chest
+        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)   // 3: Left Foot
+        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier) // 4: Right Foot
+        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)   // 5: Left Knee
+        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier) // 6: Right Knee
+        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier) // 7: Left Elbow
+        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)// 8: Right Elbow
 
         return reusableMessageList
     }
@@ -96,9 +89,9 @@ object PoseOscMapper {
         return null
     }
 
-    private fun appendNamedTracker(
+    private fun appendIndexedTracker(
         out: MutableList<OscMessageData>,
-        jointName: String,
+        trackerIndex: Int,
         joint: JointSample?,
         rotationEuler: Vec3,
         origin: JointSample,
@@ -110,13 +103,13 @@ object PoseOscMapper {
         val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier)
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$jointName/position",
+                address = "/tracking/trackers/$trackerIndex/position",
                 args = listOf(p.x, p.y, p.z)
             )
         )
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$jointName/rotation",
+                address = "/tracking/trackers/$trackerIndex/rotation",
                 args = listOf(rotationEuler.x, rotationEuler.y, rotationEuler.z)
             )
         )
