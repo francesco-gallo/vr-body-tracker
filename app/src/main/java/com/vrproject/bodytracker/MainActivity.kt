@@ -153,7 +153,8 @@ class MainActivity : AppCompatActivity() {
             val messages = PoseOscMapper.toMessages(
                 frame = processedFrame,
                 estimatedHeightMeters = cachedHeightMeters,
-                isFrontCamera = isFront
+                isFrontCamera = isFront,
+                config = savedConfig
             )
 
             appScope.launch(Dispatchers.IO) {
@@ -257,7 +258,16 @@ class MainActivity : AppCompatActivity() {
         binding.ipEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.portEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.heightEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
-        binding.fpsEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
+
+        binding.fpsSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val actualFps = progress + 10
+                binding.fpsLabel.text = "Target FPS: $actualFps"
+                if (fromUser) cacheUpdateListener()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         binding.invertCameraSwitch.setOnCheckedChangeListener { _, checked ->
             invertCameraView = checked
@@ -265,6 +275,17 @@ class MainActivity : AppCompatActivity() {
             val shouldMirrorOverlay = invertCameraView xor isFront
             binding.jointOverlay.setMirrorX(shouldMirrorOverlay)
             persistCurrentConfig()
+        }
+
+        binding.adjustJointsButton.setOnClickListener {
+            JointAdjustmentsDialog(
+                context = this,
+                currentConfigProvider = { savedConfig },
+                onConfigUpdated = { updatedConfig ->
+                    savedConfig = updatedConfig
+                    AppConfigStore.save(this, savedConfig)
+                }
+            ).show()
         }
 
         binding.calibrateButton.setOnClickListener {
@@ -335,11 +356,12 @@ class MainActivity : AppCompatActivity() {
         binding.ipEditText.isEnabled = enabled
         binding.portEditText.isEnabled = enabled
         binding.heightEditText.isEnabled = enabled
-        binding.fpsEditText.isEnabled = enabled
+        binding.fpsSeekBar.isEnabled = enabled
         binding.invertCameraSwitch.isEnabled = enabled
         binding.smoothingSeekBar.isEnabled = enabled
         binding.modelSpinner.isEnabled = enabled
         binding.cameraSpinner.isEnabled = enabled
+        binding.adjustJointsButton.isEnabled = enabled
 
         if (enabled) {
             updateButtonState()
@@ -352,7 +374,7 @@ class MainActivity : AppCompatActivity() {
         cachedHost = binding.ipEditText.text?.toString()?.trim().orEmpty()
         cachedPort = parsePort()
         cachedHeightMeters = parseHeightMeters()
-        cachedFps = parseFps() ?: 60
+        cachedFps = binding.fpsSeekBar.progress + 10
     }
 
     private fun applyInsets() {
@@ -388,7 +410,11 @@ class MainActivity : AppCompatActivity() {
         binding.ipEditText.setText(config.ip)
         binding.portEditText.setText(config.port.toString())
         binding.heightEditText.setText(config.heightMeters.toString())
-        binding.fpsEditText.setText(config.fps.toString())
+
+        val fpsProgress = (config.fps - 10).coerceIn(0, 50)
+        binding.fpsSeekBar.progress = fpsProgress
+        binding.fpsLabel.text = "Target FPS: ${config.fps}"
+
         binding.smoothingSeekBar.progress = config.smoothing
         invertCameraView = config.invertCamera
         binding.invertCameraSwitch.isChecked = config.invertCamera
@@ -416,7 +442,13 @@ class MainActivity : AppCompatActivity() {
             smoothing = binding.smoothingSeekBar.progress,
             invertCamera = binding.invertCameraSwitch.isChecked,
             modelType = selectedModelType,
-            cameraId = selectedCameraItem?.id ?: ""
+            cameraId = selectedCameraItem?.id ?: "",
+            headOffset = savedConfig.headOffset,
+            hipOffset = savedConfig.hipOffset,
+            chestOffset = savedConfig.chestOffset,
+            feetOffset = savedConfig.feetOffset,
+            kneesOffset = savedConfig.kneesOffset,
+            elbowsOffset = savedConfig.elbowsOffset
         )
         savedConfig = config
         AppConfigStore.save(this, config)
@@ -570,18 +602,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun canSendNow(nowMs: Long): Boolean {
-        val fps = cachedFps.coerceIn(1, 60)
+        val fps = cachedFps.coerceIn(10, 60)
         val minInterval = 1000L / fps
         if (nowMs - lastSentAtMs < minInterval) {
             return false
         }
         lastSentAtMs = nowMs
         return true
-    }
-
-    private fun parseFps(): Int? {
-        val value = binding.fpsEditText.text?.toString()?.trim()?.toIntOrNull() ?: return null
-        return if (value in 1..60) value else null
     }
 
     private fun parseHeightMeters(): Float {
@@ -656,7 +683,7 @@ class MainActivity : AppCompatActivity() {
             val cameraName = selectedCameraItem?.name ?: "Unknown"
 
             val statusText = if (coverage.complete) {
-                getString(R.string.status_streaming_info, frame.joints.size, host, port, cameraName)
+                getString(R.string.status_streaming, host, port)
             } else {
                 getString(R.string.status_partial_body, coverage.visible, coverage.required)
             }

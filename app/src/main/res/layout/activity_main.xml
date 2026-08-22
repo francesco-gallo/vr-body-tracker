@@ -149,22 +149,20 @@
                 android:inputType="numberDecimal"
                 android:textColor="#FFFFFF" />
 
+            <!-- TARGET FPS SLIDER (10 to 60) -->
             <TextView
+                android:id="@+id/fpsLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/label_fps"
-                android:textColor="#888888"
-                android:textSize="12sp" />
+                android:text="Target FPS: 60"
+                android:textColor="#FFFFFF" />
 
-            <EditText
-                android:id="@+id/fpsEditText"
+            <SeekBar
+                android:id="@+id/fpsSeekBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:autofillHints="none"
-                android:hint="@string/hint_fps"
-                android:inputType="number"
-                android:textColor="#FFFFFF" />
+                android:max="50" />
 
             <TextView
                 android:id="@+id/smoothingLabel"
@@ -199,10 +197,17 @@
                 android:textColor="#FFFFFF" />
 
             <Button
-                android:id="@+id/calibrateButton"
+                android:id="@+id/adjustJointsButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
+                android:text="Joint Adjustments" />
+
+            <Button
+                android:id="@+id/calibrateButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
                 android:text="@string/btn_calibrate" />
 
             <Button

@@ -12,25 +12,28 @@ object PoseOscMapper {
 
     private var lastTorsoRot = Vec3(0f, 0f, 0f)
     private val lastRotations = HashMap<String, Vec3>()
-    private val reusableMessageList = ArrayList<OscMessageData>(16)
+    private val reusableMessageList = ArrayList<OscMessageData>(18)
 
     fun toMessages(
         frame: PoseFrame,
         estimatedHeightMeters: Float,
-        isFrontCamera: Boolean
+        isFrontCamera: Boolean,
+        config: AppConfig
     ): List<OscMessageData> {
         reusableMessageList.clear()
         return toVrchatTrackerMessages(
             frame = frame,
             estimatedHeightMeters = estimatedHeightMeters,
-            isFrontCamera = isFrontCamera
+            isFrontCamera = isFrontCamera,
+            config = config
         )
     }
 
     private fun toVrchatTrackerMessages(
         frame: PoseFrame,
         estimatedHeightMeters: Float,
-        isFrontCamera: Boolean
+        isFrontCamera: Boolean,
+        config: AppConfig
     ): List<OscMessageData> {
         val joints = frame.joints
 
@@ -39,6 +42,7 @@ object PoseOscMapper {
         val leftShoulder = findJoint(joints, "left_shoulder")
         val rightShoulder = findJoint(joints, "right_shoulder")
 
+        val head = findJoint(joints, "head")
         val hip = averageJoint("hip_mid", leftHip, rightHip)
         val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
         val leftFoot = findJoint(joints, "left_ankle")
@@ -58,6 +62,7 @@ object PoseOscMapper {
         val xMultiplier = if (isFrontCamera) -1f else 1f
 
         val torsoRot = calculateTorsoOrientation(leftShoulder, rightShoulder, leftHip, rightHip, isFrontCamera)
+        val headRot = torsoRot
 
         val leftFootRot = rotationFromDirection("left_foot", leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightFootRot = rotationFromDirection("right_foot", rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
@@ -66,15 +71,25 @@ object PoseOscMapper {
         val leftElbowRot = rotationFromDirection("left_elbow", leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightElbowRot = rotationFromDirection("right_elbow", rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
 
-        // Custom ordered indices (1 through 8)
-        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier)        // 1: Hip
-        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier)      // 2: Chest
-        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier)   // 3: Left Foot
-        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier) // 4: Right Foot
-        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier)   // 5: Left Knee
-        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier) // 6: Right Knee
-        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier) // 7: Left Elbow
-        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier)// 8: Right Elbow
+        // 1: Hip
+        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y)
+        // 2: Chest
+        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y)
+
+        // 3: Left Foot & 4: Right Foot
+        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y)
+        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y)
+
+        // 5: Left Knee & 6: Right Knee
+        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y)
+        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y)
+
+        // 7: Left Elbow & 8: Right Elbow
+        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y)
+        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y)
+
+        // 9: Head
+        appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y)
 
         return reusableMessageList
     }
@@ -96,11 +111,13 @@ object PoseOscMapper {
         rotationEuler: Vec3,
         origin: JointSample,
         metersPerNorm: Float,
-        xMultiplier: Float
+        xMultiplier: Float,
+        offsetX: Float,
+        offsetY: Float
     ) {
         if (joint == null || joint.visibility < VISIBILITY_THRESHOLD) return
 
-        val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier)
+        val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier, offsetX, offsetY)
         out.add(
             OscMessageData(
                 address = "/tracking/trackers/$trackerIndex/position",
@@ -230,10 +247,12 @@ object PoseOscMapper {
         joint: JointSample,
         origin: JointSample,
         metersPerNorm: Float,
-        xMultiplier: Float
+        xMultiplier: Float,
+        offsetX: Float,
+        offsetY: Float
     ): Vec3 {
-        val x = (joint.x - origin.x) * metersPerNorm * xMultiplier
-        val y = (origin.y - joint.y) * metersPerNorm
+        val x = ((joint.x - origin.x) * metersPerNorm * xMultiplier) + offsetX
+        val y = ((origin.y - joint.y) * metersPerNorm) + offsetY
         val deltaZNorm = (joint.z - origin.z) / 1000f
         val z = deltaZNorm * metersPerNorm
 
