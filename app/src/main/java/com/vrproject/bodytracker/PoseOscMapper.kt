@@ -14,7 +14,6 @@ object PoseOscMapper {
     private val lastRotations = HashMap<String, Vec3>()
     private val reusableMessageList = ArrayList<OscMessageData>(18)
 
-    // Baseline root reference captured during calibration
     private var rootCalibrationOffset: Vec3? = null
 
     fun calibrateRoot(frame: PoseFrame) {
@@ -76,7 +75,6 @@ object PoseOscMapper {
 
         val currentRoot = hip ?: chest ?: return emptyList()
 
-        // Use calibrated root anchor if available, otherwise fallback to current frame root
         val rootAnchor = if (rootCalibrationOffset != null) {
             JointSample(
                 name = "calibrated_root",
@@ -111,24 +109,37 @@ object PoseOscMapper {
         val gz = config.globalZOffset
 
         // 1: Hip
-        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y, gz)
+        if (config.enableHip) {
+            appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y, gz)
+        }
+
         // 2: Chest
-        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y, gz)
+        if (config.enableChest) {
+            appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y, gz)
+        }
 
         // 3: Left Foot & 4: Right Foot
-        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y, gz)
-        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y, gz)
+        if (config.enableFeet) {
+            appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y, gz)
+        }
 
         // 5: Left Knee & 6: Right Knee
-        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y, gz)
-        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y, gz)
+        if (config.enableKnees) {
+            appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y, gz)
+        }
 
         // 7: Left Elbow & 8: Right Elbow
-        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y, gz)
-        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y, gz)
+        if (config.enableElbows) {
+            appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y, gz)
+        }
 
         // 9: Head
-        appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y, gz)
+        if (config.enableHead) {
+            appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y, gz)
+        }
 
         return reusableMessageList
     }

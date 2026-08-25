@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.view.ViewCompat
@@ -27,23 +28,29 @@ class JointAdjustmentsDialog(
         val globalZLabel = dialogView.findViewById<TextView>(R.id.globalZLabel)
         val globalZ = dialogView.findViewById<SeekBar>(R.id.globalZSeekBar)
 
+        val headCheckBox = dialogView.findViewById<CheckBox>(R.id.headCheckBox)
         val headLabel = dialogView.findViewById<TextView>(R.id.headLabel)
         val headY = dialogView.findViewById<SeekBar>(R.id.headYSeekBar)
 
+        val hipCheckBox = dialogView.findViewById<CheckBox>(R.id.hipCheckBox)
         val hipLabel = dialogView.findViewById<TextView>(R.id.hipLabel)
         val hipY = dialogView.findViewById<SeekBar>(R.id.hipYSeekBar)
 
+        val chestCheckBox = dialogView.findViewById<CheckBox>(R.id.chestCheckBox)
         val chestLabel = dialogView.findViewById<TextView>(R.id.chestLabel)
         val chestY = dialogView.findViewById<SeekBar>(R.id.chestYSeekBar)
 
+        val feetCheckBox = dialogView.findViewById<CheckBox>(R.id.feetCheckBox)
         val feetLabel = dialogView.findViewById<TextView>(R.id.feetLabel)
         val feetX = dialogView.findViewById<SeekBar>(R.id.feetXSeekBar)
         val feetY = dialogView.findViewById<SeekBar>(R.id.feetYSeekBar)
 
+        val kneesCheckBox = dialogView.findViewById<CheckBox>(R.id.kneesCheckBox)
         val kneesLabel = dialogView.findViewById<TextView>(R.id.kneesLabel)
         val kneesX = dialogView.findViewById<SeekBar>(R.id.kneesXSeekBar)
         val kneesY = dialogView.findViewById<SeekBar>(R.id.kneesYSeekBar)
 
+        val elbowsCheckBox = dialogView.findViewById<CheckBox>(R.id.elbowsCheckBox)
         val elbowsLabel = dialogView.findViewById<TextView>(R.id.elbowsLabel)
         val elbowsX = dialogView.findViewById<SeekBar>(R.id.elbowsXSeekBar)
         val elbowsY = dialogView.findViewById<SeekBar>(R.id.elbowsYSeekBar)
@@ -88,13 +95,19 @@ class JointAdjustmentsDialog(
                 chestOffset = JointOffset(0f, metersFromProgress(chestY.progress)),
                 feetOffset = JointOffset(metersFromProgress(feetX.progress), metersFromProgress(feetY.progress)),
                 kneesOffset = JointOffset(metersFromProgress(kneesX.progress), metersFromProgress(kneesY.progress)),
-                elbowsOffset = JointOffset(metersFromProgress(elbowsX.progress), metersFromProgress(elbowsY.progress))
+                elbowsOffset = JointOffset(metersFromProgress(elbowsX.progress), metersFromProgress(elbowsY.progress)),
+                enableHead = headCheckBox.isChecked,
+                enableHip = hipCheckBox.isChecked,
+                enableChest = chestCheckBox.isChecked,
+                enableFeet = feetCheckBox.isChecked,
+                enableKnees = kneesCheckBox.isChecked,
+                enableElbows = elbowsCheckBox.isChecked
             )
             updateLabels()
             onConfigUpdated(savedConfig)
         }
 
-        fun setSeekBarsFromConfig() {
+        fun setControlsFromConfig() {
             globalZ.progress = progressFromMeters(savedConfig.globalZOffset)
             headY.progress = progressFromMeters(savedConfig.headOffset.y)
             hipY.progress = progressFromMeters(savedConfig.hipOffset.y)
@@ -105,10 +118,18 @@ class JointAdjustmentsDialog(
             kneesY.progress = progressFromMeters(savedConfig.kneesOffset.y)
             elbowsX.progress = progressFromMeters(savedConfig.elbowsOffset.x)
             elbowsY.progress = progressFromMeters(savedConfig.elbowsOffset.y)
+
+            headCheckBox.isChecked = savedConfig.enableHead
+            hipCheckBox.isChecked = savedConfig.enableHip
+            chestCheckBox.isChecked = savedConfig.enableChest
+            feetCheckBox.isChecked = savedConfig.enableFeet
+            kneesCheckBox.isChecked = savedConfig.enableKnees
+            elbowsCheckBox.isChecked = savedConfig.enableElbows
+
             updateLabels()
         }
 
-        setSeekBarsFromConfig()
+        setControlsFromConfig()
 
         val listener = object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -120,6 +141,10 @@ class JointAdjustmentsDialog(
 
         listOf(globalZ, headY, hipY, chestY, feetX, feetY, kneesX, kneesY, elbowsX, elbowsY).forEach {
             it.setOnSeekBarChangeListener(listener)
+        }
+
+        listOf(headCheckBox, hipCheckBox, chestCheckBox, feetCheckBox, kneesCheckBox, elbowsCheckBox).forEach {
+            it.setOnCheckedChangeListener { _, _ -> applyCurrentDialogValues() }
         }
 
         val dialog = Dialog(context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
@@ -134,9 +159,15 @@ class JointAdjustmentsDialog(
                 chestOffset = JointOffset(),
                 feetOffset = JointOffset(),
                 kneesOffset = JointOffset(),
-                elbowsOffset = JointOffset()
+                elbowsOffset = JointOffset(),
+                enableHead = true,
+                enableHip = true,
+                enableChest = true,
+                enableFeet = true,
+                enableKnees = true,
+                enableElbows = true
             )
-            setSeekBarsFromConfig()
+            setControlsFromConfig()
             onConfigUpdated(savedConfig)
         }
 
