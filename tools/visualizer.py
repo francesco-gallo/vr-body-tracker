@@ -42,7 +42,7 @@ total_packets_received = 0
 TIMEOUT_SECONDS = 0.5
 
 def handle_osc_data(address, *args):
-    """Parsa i percorsi /tracking/trackers/[ID]/position e li mappa ai nomi estesi."""
+    """Parsa i percorsi /tracking/trackers/[ID]/position e memorizza le coordinate (x, y, z)."""
     global points_3d, total_packets_received
     total_packets_received += 1
     current_time = time.time()
@@ -55,24 +55,21 @@ def handle_osc_data(address, *args):
         raw_id = parts[2]
         datatype = parts[3]
 
-        # Converti l'ID numerico nel nome esteso (se presente nella mappa)
         joint_name = TRACKER_MAP.get(raw_id, raw_id)
 
-        # Gestisci solo i pacchetti di posizione
         if datatype == "position" and len(args) >= 3:
             if all(isinstance(a, (int, float)) for a in args[:3]):
                 points_3d[joint_name] = {
                     "pos": [float(args[0]), float(args[1]), float(args[2])],
                     "last_updated": current_time
                 }
-                
-        # Supporto per sotto-assi singoli (es. /position/x)
+
         elif datatype == "position" and len(parts) == 5 and len(args) >= 1:
             axis = parts[4]
             val = float(args[0])
             if joint_name not in points_3d:
                 points_3d[joint_name] = {"pos": [0.0, 0.0, 0.0], "last_updated": current_time}
-                
+
             if axis in ['x', '0']:
                 points_3d[joint_name]["pos"][0] = val
             elif axis in ['y', '1']:
@@ -85,29 +82,29 @@ def start_osc_server(ip, port):
     """Avvia il server UDP su un thread dedicato."""
     dispatcher = Dispatcher()
     dispatcher.map("*", handle_osc_data)
-    
+
     server = BlockingOSCUDPServer(("0.0.0.0", port), dispatcher)
     print(f"\n=============================================")
     print(f" Server UDP attivo su porta {port}")
-    print(f" Mappatura ID 1..8 -> Nomi estesi applicata")
+    print(f" Sistema di assi: Y = Verticale, Z = Profondità")
     print(f" Timeout di scomparsa punti: {TIMEOUT_SECONDS}s")
     print(f"=============================================\n")
     server.serve_forever()
 
 def update_plot(frame, ax):
-    """Disegna e aggiorna la scena 3D."""
+    """Disegna e aggiorna la scena 3D rimappando Y in altezza."""
     ax.clear()
     current_time = time.time()
-    
-    # Stile finestra 3D
+
+    # Stile finestra 3D ed etichette coerenti con la nuova orientamento
     ax.set_facecolor('#121212')
     ax.xaxis.pane.fill = False
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False
     ax.tick_params(colors='white')
-    ax.set_xlabel('X', color='white')
-    ax.set_ylabel('Y', color='white')
-    ax.set_zlabel('Z', color='white')
+    ax.set_xlabel('X (Sinistra/Destra)', color='white')
+    ax.set_ylabel('Z (Profondità)', color='white')
+    ax.set_zlabel('Y (Verticale)', color='white')
 
     # 1. Filtro punti attivi (ricevuti negli ultimi 0.5s)
     active_points = {
@@ -116,7 +113,7 @@ def update_plot(frame, ax):
         if (current_time - data["last_updated"]) <= TIMEOUT_SECONDS
     }
 
-    ax.set_title(f'3D Skeleton (Punti attivi: {len(active_points)})', color='white')
+    ax.set_title(f'3D Skeleton (Y Verticale, Punti: {len(active_points)})', color='white')
 
     if not active_points:
         status_text = (
@@ -130,7 +127,7 @@ def update_plot(frame, ax):
         ax.set_zlim([-1, 1])
         return
 
-    # 2. Calcolo offset di centratura (Midpoint tra hip e chest)
+    # 2. Calcolo offset di centratura
     offset = [0.0, 0.0, 0.0]
     if "hip" in active_points and "chest" in active_points:
         hip = active_points["hip"]
@@ -141,28 +138,34 @@ def update_plot(frame, ax):
     elif "chest" in active_points:
         offset = list(active_points["chest"])
 
-    # Coordinate traslate rispetto al centro
-    centered_points = {
-        joint: [pos[0] - offset[0], pos[1] - offset[1], pos[2] - offset[2]]
-        for joint, pos in active_points.items()
-    }
+    # 3. Rimappatura coordinate per Matplotlib 3D:
+    # Plot X = OSC X
+    # Plot Y = OSC Z (Profondità)
+    # Plot Z = OSC Y (Verticale)
+    mapped_points = {}
+    for joint, pos in active_points.items():
+        dx = pos[0] - offset[0]
+        dy = pos[1] - offset[1] # Y originaria
+        dz = pos[2] - offset[2] # Z originaria
 
-    # 3. Disegno segmenti delle ossa
+        mapped_points[joint] = (dx, dz, dy)
+
+    # 4. Disegno segmenti delle ossa
     for p1_key, p2_key in SKELETON_BONES:
-        if p1_key in centered_points and p2_key in centered_points:
-            pt1 = centered_points[p1_key]
-            pt2 = centered_points[p2_key]
-            ax.plot([pt1[0], pt2[0]], 
-                    [pt1[1], pt2[1]], 
-                    [pt1[2], pt2[2]], 
+        if p1_key in mapped_points and p2_key in mapped_points:
+            pt1 = mapped_points[p1_key]
+            pt2 = mapped_points[p2_key]
+            ax.plot([pt1[0], pt2[0]],
+                    [pt1[1], pt2[1]],
+                    [pt1[2], pt2[2]],
                     color='#ff1744', linewidth=3.0, alpha=0.85)
 
-    # 4. Render dei punti e dei nomi estesi a schermo
+    # 5. Render dei punti e dei nomi estesi a schermo
     xs, ys, zs, labels = [], [], [], []
-    for joint, coord in centered_points.items():
-        xs.append(coord[0])
-        ys.append(coord[1])
-        zs.append(coord[2])
+    for joint, (mx, my, mz) in mapped_points.items():
+        xs.append(mx)
+        ys.append(my)
+        zs.append(mz)
         labels.append(joint)
 
     ax.scatter(xs, ys, zs, c='#00e5ff', s=60, edgecolors='white', zorder=5)

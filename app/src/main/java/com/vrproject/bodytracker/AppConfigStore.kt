@@ -30,6 +30,7 @@ data class AppConfig(
     val invertCamera: Boolean = false,
     val modelType: TrackerModelType = TrackerModelType.MEDIAPIPE_LITE,
     val cameraId: String = "",
+    val globalZOffset: Float = 0f,
     val headOffset: JointOffset = JointOffset(),
     val hipOffset: JointOffset = JointOffset(),
     val chestOffset: JointOffset = JointOffset(),
@@ -50,7 +51,8 @@ object AppConfigStore {
         smoothing = 35,
         invertCamera = false,
         modelType = TrackerModelType.MEDIAPIPE_LITE,
-        cameraId = ""
+        cameraId = "",
+        globalZOffset = 0f
     )
 
     fun load(context: Context): AppConfig {
@@ -85,6 +87,7 @@ object AppConfigStore {
         "invertCamera" to config.invertCamera.toString(),
         "modelType" to config.modelType.key,
         "cameraId" to config.cameraId,
+        "globalZ" to config.globalZOffset.toString(),
         "headX" to config.headOffset.x.toString(),
         "headY" to config.headOffset.y.toString(),
         "hipX" to config.hipOffset.x.toString(),
@@ -110,6 +113,7 @@ object AppConfigStore {
             invertCamera = values["invertCamera"]?.toBooleanStrictOrNull() ?: defaults.invertCamera,
             modelType = TrackerModelType.fromKey(values["modelType"] ?: defaults.modelType.key),
             cameraId = values["cameraId"] ?: defaults.cameraId,
+            globalZOffset = values["globalZ"]?.toFloatOrNull() ?: 0f,
             headOffset = JointOffset(values["headX"]?.toFloatOrNull() ?: 0f, values["headY"]?.toFloatOrNull() ?: 0f),
             hipOffset = JointOffset(values["hipX"]?.toFloatOrNull() ?: 0f, values["hipY"]?.toFloatOrNull() ?: 0f),
             chestOffset = JointOffset(values["chestX"]?.toFloatOrNull() ?: 0f, values["chestY"]?.toFloatOrNull() ?: 0f),

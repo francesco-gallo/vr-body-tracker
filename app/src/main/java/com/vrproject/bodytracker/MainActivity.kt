@@ -257,8 +257,19 @@ class MainActivity : AppCompatActivity() {
 
         binding.ipEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.portEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
-        binding.heightEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
 
+        // Height SeekBar: 0 to 100 progress -> 1.00m to 2.00m
+        binding.heightSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val height = 1.00f + (progress / 100f)
+                binding.heightLabel.text = String.format(Locale.US, "User Height: %.2f m", height)
+                if (fromUser) cacheUpdateListener()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // FPS SeekBar: 0 to 50 progress -> 10 to 60 FPS
         binding.fpsSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val actualFps = progress + 10
@@ -355,7 +366,7 @@ class MainActivity : AppCompatActivity() {
         binding.resetButton.isEnabled = enabled
         binding.ipEditText.isEnabled = enabled
         binding.portEditText.isEnabled = enabled
-        binding.heightEditText.isEnabled = enabled
+        binding.heightSeekBar.isEnabled = enabled
         binding.fpsSeekBar.isEnabled = enabled
         binding.invertCameraSwitch.isEnabled = enabled
         binding.smoothingSeekBar.isEnabled = enabled
@@ -373,7 +384,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateCachedValues() {
         cachedHost = binding.ipEditText.text?.toString()?.trim().orEmpty()
         cachedPort = parsePort()
-        cachedHeightMeters = parseHeightMeters()
+        cachedHeightMeters = 1.00f + (binding.heightSeekBar.progress / 100f)
         cachedFps = binding.fpsSeekBar.progress + 10
     }
 
@@ -409,7 +420,10 @@ class MainActivity : AppCompatActivity() {
     private fun populateUiFromConfig(config: AppConfig) {
         binding.ipEditText.setText(config.ip)
         binding.portEditText.setText(config.port.toString())
-        binding.heightEditText.setText(config.heightMeters.toString())
+
+        val heightProgress = ((config.heightMeters.coerceIn(1.0f, 2.0f) - 1.0f) * 100f).toInt()
+        binding.heightSeekBar.progress = heightProgress
+        binding.heightLabel.text = String.format(Locale.US, "User Height: %.2f m", config.heightMeters)
 
         val fpsProgress = (config.fps - 10).coerceIn(0, 50)
         binding.fpsSeekBar.progress = fpsProgress
@@ -443,6 +457,7 @@ class MainActivity : AppCompatActivity() {
             invertCamera = binding.invertCameraSwitch.isChecked,
             modelType = selectedModelType,
             cameraId = selectedCameraItem?.id ?: "",
+            globalZOffset = savedConfig.globalZOffset,
             headOffset = savedConfig.headOffset,
             hipOffset = savedConfig.hipOffset,
             chestOffset = savedConfig.chestOffset,
@@ -609,11 +624,6 @@ class MainActivity : AppCompatActivity() {
         }
         lastSentAtMs = nowMs
         return true
-    }
-
-    private fun parseHeightMeters(): Float {
-        val value = binding.heightEditText.text?.toString()?.trim()?.toFloatOrNull() ?: return 1.70f
-        return value.coerceIn(1.0f, 2.5f)
     }
 
     private fun updateSendFps(nowMs: Long) {

@@ -132,22 +132,20 @@
                 android:inputType="number"
                 android:textColor="#FFFFFF" />
 
+            <!-- HEIGHT SLIDER (1.00m to 2.00m) -->
             <TextView
+                android:id="@+id/heightLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/label_height"
-                android:textColor="#888888"
-                android:textSize="12sp" />
+                android:text="User Height: 1.70 m"
+                android:textColor="#FFFFFF" />
 
-            <EditText
-                android:id="@+id/heightEditText"
+            <SeekBar
+                android:id="@+id/heightSeekBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:autofillHints="none"
-                android:hint="@string/hint_height"
-                android:inputType="numberDecimal"
-                android:textColor="#FFFFFF" />
+                android:max="100" />
 
             <!-- TARGET FPS SLIDER (10 to 60) -->
             <TextView

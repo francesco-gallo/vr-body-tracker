@@ -29,6 +29,32 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- GLOBAL Z OFFSET -->
+            <TextView
+                android:id="@+id/globalZLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Global Z Offset (Z: 0.00m)"
+                android:textColor="#00FFCC"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/globalZSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp"
+                android:max="200"
+                android:progress="100" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_marginVertical="8dp"
+                android:background="#00FFCC" />
+
             <!-- HEAD (Y Only) -->
             <TextView
                 android:id="@+id/headLabel"

@@ -64,32 +64,37 @@ object PoseOscMapper {
         val torsoRot = calculateTorsoOrientation(leftShoulder, rightShoulder, leftHip, rightHip, isFrontCamera)
         val headRot = torsoRot
 
-        val leftFootRot = rotationFromDirection("left_foot", leftKnee, leftFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
-        val rightFootRot = rotationFromDirection("right_foot", rightKnee, rightFoot, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val leftKneeRot = rotationFromDirection("left_knee", hip, leftKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightKneeRot = rotationFromDirection("right_knee", hip, rightKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
+
+        // Foot rotation is set to match the knee rotation directly
+        val leftFootRot = leftKneeRot
+        val rightFootRot = rightKneeRot
+
         val leftElbowRot = rotationFromDirection("left_elbow", leftShoulder, leftElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightElbowRot = rotationFromDirection("right_elbow", rightShoulder, rightElbow, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
 
+        val gz = config.globalZOffset
+
         // 1: Hip
-        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y)
+        appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y, gz)
         // 2: Chest
-        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y)
+        appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y, gz)
 
         // 3: Left Foot & 4: Right Foot
-        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y)
-        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y)
+        appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y, gz)
+        appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y, gz)
 
         // 5: Left Knee & 6: Right Knee
-        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y)
-        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y)
+        appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y, gz)
+        appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y, gz)
 
         // 7: Left Elbow & 8: Right Elbow
-        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y)
-        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y)
+        appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y, gz)
+        appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y, gz)
 
         // 9: Head
-        appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y)
+        appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y, gz)
 
         return reusableMessageList
     }
@@ -113,11 +118,12 @@ object PoseOscMapper {
         metersPerNorm: Float,
         xMultiplier: Float,
         offsetX: Float,
-        offsetY: Float
+        offsetY: Float,
+        offsetZ: Float
     ) {
         if (joint == null || joint.visibility < VISIBILITY_THRESHOLD) return
 
-        val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier, offsetX, offsetY)
+        val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier, offsetX, offsetY, offsetZ)
         out.add(
             OscMessageData(
                 address = "/tracking/trackers/$trackerIndex/position",
@@ -249,12 +255,13 @@ object PoseOscMapper {
         metersPerNorm: Float,
         xMultiplier: Float,
         offsetX: Float,
-        offsetY: Float
+        offsetY: Float,
+        offsetZ: Float
     ): Vec3 {
         val x = ((joint.x - origin.x) * metersPerNorm * xMultiplier) + offsetX
         val y = ((origin.y - joint.y) * metersPerNorm) + offsetY
         val deltaZNorm = (joint.z - origin.z) / 1000f
-        val z = deltaZNorm * metersPerNorm
+        val z = (deltaZNorm * metersPerNorm) + offsetZ
 
         return Vec3(x, y, z)
     }

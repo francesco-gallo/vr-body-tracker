@@ -24,6 +24,9 @@ class JointAdjustmentsDialog(
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_joint_adjustments, null)
         var savedConfig = currentConfigProvider()
 
+        val globalZLabel = dialogView.findViewById<TextView>(R.id.globalZLabel)
+        val globalZ = dialogView.findViewById<SeekBar>(R.id.globalZSeekBar)
+
         val headLabel = dialogView.findViewById<TextView>(R.id.headLabel)
         val headY = dialogView.findViewById<SeekBar>(R.id.headYSeekBar)
 
@@ -48,7 +51,6 @@ class JointAdjustmentsDialog(
         val resetButton = dialogView.findViewById<Button>(R.id.resetOffsetsButton)
         val closeButton = dialogView.findViewById<Button>(R.id.closeDialogButton)
 
-        // Apply System Window Insets to avoid navigation bar overlap
         val initialPaddingLeft = dialogView.paddingLeft
         val initialPaddingTop = dialogView.paddingTop
         val initialPaddingRight = dialogView.paddingRight
@@ -69,6 +71,7 @@ class JointAdjustmentsDialog(
         fun progressFromMeters(m: Float): Int = ((m * 100f) + 100f).toInt().coerceIn(0, 200)
 
         fun updateLabels() {
+            globalZLabel.text = String.format(Locale.US, "Global Z Offset (Z: %.2fm)", savedConfig.globalZOffset)
             headLabel.text = String.format(Locale.US, "Head Offset (Y: %.2fm)", savedConfig.headOffset.y)
             hipLabel.text = String.format(Locale.US, "Hip Offset (Y: %.2fm)", savedConfig.hipOffset.y)
             chestLabel.text = String.format(Locale.US, "Chest Offset (Y: %.2fm)", savedConfig.chestOffset.y)
@@ -79,6 +82,7 @@ class JointAdjustmentsDialog(
 
         fun applyCurrentDialogValues() {
             savedConfig = savedConfig.copy(
+                globalZOffset = metersFromProgress(globalZ.progress),
                 headOffset = JointOffset(0f, metersFromProgress(headY.progress)),
                 hipOffset = JointOffset(0f, metersFromProgress(hipY.progress)),
                 chestOffset = JointOffset(0f, metersFromProgress(chestY.progress)),
@@ -91,6 +95,7 @@ class JointAdjustmentsDialog(
         }
 
         fun setSeekBarsFromConfig() {
+            globalZ.progress = progressFromMeters(savedConfig.globalZOffset)
             headY.progress = progressFromMeters(savedConfig.headOffset.y)
             hipY.progress = progressFromMeters(savedConfig.hipOffset.y)
             chestY.progress = progressFromMeters(savedConfig.chestOffset.y)
@@ -113,7 +118,7 @@ class JointAdjustmentsDialog(
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         }
 
-        listOf(headY, hipY, chestY, feetX, feetY, kneesX, kneesY, elbowsX, elbowsY).forEach {
+        listOf(globalZ, headY, hipY, chestY, feetX, feetY, kneesX, kneesY, elbowsX, elbowsY).forEach {
             it.setOnSeekBarChangeListener(listener)
         }
 
@@ -123,6 +128,7 @@ class JointAdjustmentsDialog(
 
         resetButton.setOnClickListener {
             savedConfig = savedConfig.copy(
+                globalZOffset = 0f,
                 headOffset = JointOffset(),
                 hipOffset = JointOffset(),
                 chestOffset = JointOffset(),
