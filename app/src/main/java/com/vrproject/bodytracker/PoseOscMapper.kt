@@ -14,6 +14,28 @@ object PoseOscMapper {
     private val lastRotations = HashMap<String, Vec3>()
     private val reusableMessageList = ArrayList<OscMessageData>(18)
 
+    // Baseline root reference captured during calibration
+    private var rootCalibrationOffset: Vec3? = null
+
+    fun calibrateRoot(frame: PoseFrame) {
+        val joints = frame.joints
+        val leftHip = findJoint(joints, "left_hip")
+        val rightHip = findJoint(joints, "right_hip")
+        val hip = averageJoint("hip_mid", leftHip, rightHip)
+        val leftShoulder = findJoint(joints, "left_shoulder")
+        val rightShoulder = findJoint(joints, "right_shoulder")
+        val chest = averageJoint("chest_mid", leftShoulder, rightShoulder)
+
+        val anchor = hip ?: chest
+        if (anchor != null) {
+            rootCalibrationOffset = Vec3(anchor.x, anchor.y, anchor.z)
+        }
+    }
+
+    fun resetCalibration() {
+        rootCalibrationOffset = null
+    }
+
     fun toMessages(
         frame: PoseFrame,
         estimatedHeightMeters: Float,
@@ -52,7 +74,20 @@ object PoseOscMapper {
         val leftElbow = findJoint(joints, "left_elbow")
         val rightElbow = findJoint(joints, "right_elbow")
 
-        val rootAnchor = hip ?: chest ?: return emptyList()
+        val currentRoot = hip ?: chest ?: return emptyList()
+
+        // Use calibrated root anchor if available, otherwise fallback to current frame root
+        val rootAnchor = if (rootCalibrationOffset != null) {
+            JointSample(
+                name = "calibrated_root",
+                x = rootCalibrationOffset!!.x,
+                y = rootCalibrationOffset!!.y,
+                z = rootCalibrationOffset!!.z,
+                visibility = 1.0f
+            )
+        } else {
+            currentRoot
+        }
 
         val observedHeight = estimateObservedHeight(joints)
         val safeObserved = max(0.2f, observedHeight)
@@ -67,7 +102,6 @@ object PoseOscMapper {
         val leftKneeRot = rotationFromDirection("left_knee", hip, leftKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
         val rightKneeRot = rotationFromDirection("right_knee", hip, rightKnee, defaultRot = torsoRot, isFrontCamera = isFrontCamera)
 
-        // Foot rotation is set to match the knee rotation directly
         val leftFootRot = leftKneeRot
         val rightFootRot = rightKneeRot
 

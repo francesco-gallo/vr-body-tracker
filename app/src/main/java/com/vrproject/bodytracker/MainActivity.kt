@@ -203,6 +203,7 @@ class MainActivity : AppCompatActivity() {
         oscSender.close()
         sendJob?.cancel()
         poseProcessor.clear()
+        PoseOscMapper.resetCalibration()
         stopMjpegServer()
     }
 
@@ -258,7 +259,6 @@ class MainActivity : AppCompatActivity() {
         binding.ipEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.portEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
 
-        // Height SeekBar: 0 to 100 progress -> 1.00m to 2.00m
         binding.heightSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val height = 1.00f + (progress / 100f)
@@ -269,7 +269,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // FPS SeekBar: 0 to 50 progress -> 10 to 60 FPS
         binding.fpsSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val actualFps = progress + 10
@@ -352,6 +351,7 @@ class MainActivity : AppCompatActivity() {
             val defaultConfig = AppConfigStore.defaultConfig()
             AppConfigStore.clear(this)
             savedConfig = defaultConfig
+            PoseOscMapper.resetCalibration()
             populateUiFromConfig(defaultConfig)
             binding.statusText.text = getString(R.string.status_settings_reset)
         }
@@ -602,7 +602,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun processFrame(frame: PoseFrame): PoseFrame {
         if (pendingCalibration) {
-            poseProcessor.calibrate(frame)
+            PoseOscMapper.calibrateRoot(frame)
             pendingCalibration = false
             runOnUiThread {
                 binding.statusText.text = getString(R.string.status_calibrated)
@@ -690,7 +690,6 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val host = cachedHost
             val port = cachedPort ?: 0
-            val cameraName = selectedCameraItem?.name ?: "Unknown"
 
             val statusText = if (coverage.complete) {
                 getString(R.string.status_streaming, host, port)
