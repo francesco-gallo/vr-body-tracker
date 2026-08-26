@@ -23,6 +23,7 @@ import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class JointSample(
@@ -49,14 +50,15 @@ class PoseTracker(
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
+    private val offloadExecutor = Executors.newSingleThreadExecutor()
     @Volatile private var lastAnalyzedTimeMs = 0L
 
     private var currentModelType: TrackerModelType? = null
     private var mediaPipeDetector: PoseLandmarker? = null
     private var mlKitDetector: com.google.mlkit.vision.pose.PoseDetector? = null
 
-    private var currentRawBitmap: Bitmap? = null
-    private var currentRotationDegrees: Int = 0
+    private var activeRawBitmap: Bitmap? = null
+    private var activeRotationDegrees: Int = 0
 
     private fun ensureEngine(desired: TrackerModelType) {
         if (currentModelType == desired) return
@@ -102,7 +104,7 @@ class PoseTracker(
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
         val now = System.currentTimeMillis()
-        val targetFps = targetFpsProvider().coerceIn(1, 60)
+        val targetFps = targetFpsProvider().coerceIn(10, 60)
         val minIntervalMs = 1000L / targetFps
 
         if (now - lastAnalyzedTimeMs < minIntervalMs) {
@@ -127,16 +129,6 @@ class PoseTracker(
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        currentRotationDegrees = rotationDegrees
-
-        val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
-        currentRawBitmap = if (shouldCaptureBitmap) {
-            try {
-                imageProxy.toBitmap()
-            } catch (_: Exception) {
-                null
-            }
-        } else null
 
         if (desiredModel == TrackerModelType.MLKIT) {
             val mediaImage = imageProxy.image
@@ -146,6 +138,10 @@ class PoseTracker(
                 return
             }
 
+            val capturedBitmap = if (onCheckShouldCaptureBitmap?.invoke() == true) {
+                try { imageProxy.toBitmap() } catch (_: Exception) { null }
+            } else null
+
             val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
             val isRotated = rotationDegrees == 90 || rotationDegrees == 270
             val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
@@ -154,47 +150,63 @@ class PoseTracker(
             mlKitDetector?.process(image)
                 ?.addOnSuccessListener { pose ->
                     val frame = convertMlKitPose(pose, width, height)
-                    onFrame(frame, currentRawBitmap, rotationDegrees)
+                    onFrame(frame, capturedBitmap, rotationDegrees)
                 }
                 ?.addOnFailureListener {
-                    currentRawBitmap?.recycle()
+                    capturedBitmap?.recycle()
                 }
                 ?.addOnCompleteListener {
-                    currentRawBitmap = null
                     isProcessing.set(false)
                     imageProxy.close()
                 }
         } else {
-            val rawBitmap = try {
-                imageProxy.toBitmap()
-            } catch (_: Exception) {
-                isProcessing.set(false)
-                imageProxy.close()
-                return
-            } finally {
-                imageProxy.close()
-            }
+            offloadExecutor.execute {
+                try {
+                    val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
+                    val rawBitmap = try {
+                        imageProxy.toBitmap()
+                    } catch (_: Exception) {
+                        null
+                    }
 
-            val rotatedBitmap = if (rotationDegrees != 0) {
-                val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
-                    if (it != rawBitmap) rawBitmap.recycle()
+                    if (rawBitmap == null) {
+                        isProcessing.set(false)
+                        imageProxy.close()
+                        return@execute
+                    }
+
+                    activeRotationDegrees = rotationDegrees
+
+                    // Explicitly fallback to ARGB_8888 if rawBitmap.config is null
+                    val configToUse = rawBitmap.config ?: Bitmap.Config.ARGB_8888
+                    activeRawBitmap = if (shouldCaptureBitmap) rawBitmap.copy(configToUse, true) else null
+
+                    val rotatedBitmap = if (rotationDegrees != 0) {
+                        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                        Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
+                            if (it != rawBitmap) rawBitmap.recycle()
+                        }
+                    } else {
+                        rawBitmap
+                    }
+
+                    val mpImage: MPImage = BitmapImageBuilder(rotatedBitmap).build()
+                    mediaPipeDetector?.detectAsync(mpImage, now)
+                } catch (_: Exception) {
+                    isProcessing.set(false)
+                } finally {
+                    imageProxy.close()
                 }
-            } else {
-                rawBitmap
             }
-
-            val mpImage: MPImage = BitmapImageBuilder(rotatedBitmap).build()
-            mediaPipeDetector?.detectAsync(mpImage, now)
         }
     }
 
     private fun handleMediaPipeResult(result: PoseLandmarkerResult) {
         try {
             val poseFrame = convertMediaPipeResult(result)
-            onFrame(poseFrame, currentRawBitmap, currentRotationDegrees)
+            onFrame(poseFrame, activeRawBitmap, activeRotationDegrees)
         } finally {
-            currentRawBitmap = null
+            activeRawBitmap = null
             isProcessing.set(false)
         }
     }
@@ -288,6 +300,7 @@ class PoseTracker(
 
     fun close() {
         closeEngines()
+        offloadExecutor.shutdown()
     }
 
     companion object {
