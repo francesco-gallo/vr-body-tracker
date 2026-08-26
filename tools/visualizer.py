@@ -1,6 +1,8 @@
 import time
 import threading
 from collections import defaultdict
+import matplotlib
+matplotlib.use('QtAgg')  # Uses Qt for OS window management instead of Tkinter
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from pythonosc.dispatcher import Dispatcher
