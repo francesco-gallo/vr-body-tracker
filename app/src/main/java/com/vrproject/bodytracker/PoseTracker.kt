@@ -59,7 +59,7 @@ class PoseTracker(
     @Volatile private var activeRotationDegrees: Int = 0
 
     private fun ensureEngine(desired: TrackerModelType) {
-        if (currentModelType == desired) return
+        if (currentModelType == desired && mediaPipeDetector != null) return
 
         closeEngines()
         currentModelType = desired
@@ -73,22 +73,41 @@ class PoseTracker(
                     else -> "pose_landmarker_lite.task"
                 }
 
-                val baseOptions = BaseOptions.builder()
-                    .setModelAssetPath(modelFile)
-                    .setDelegate(Delegate.GPU)
-                    .build()
+                try {
+                    val baseOptions = BaseOptions.builder()
+                        .setModelAssetPath(modelFile)
+                        .setDelegate(Delegate.GPU)
+                        .build()
 
-                val options = PoseLandmarker.PoseLandmarkerOptions.builder()
-                    .setBaseOptions(baseOptions)
-                    .setMinPoseDetectionConfidence(0.5f)
-                    .setMinPosePresenceConfidence(0.5f)
-                    .setMinTrackingConfidence(0.5f)
-                    .setRunningMode(RunningMode.LIVE_STREAM)
-                    .setResultListener { result, _ -> handleMediaPipeResult(result) }
-                    .setErrorListener { _ -> isProcessing.set(false) }
-                    .build()
+                    val options = PoseLandmarker.PoseLandmarkerOptions.builder()
+                        .setBaseOptions(baseOptions)
+                        .setMinPoseDetectionConfidence(0.5f)
+                        .setMinPosePresenceConfidence(0.5f)
+                        .setMinTrackingConfidence(0.5f)
+                        .setRunningMode(RunningMode.LIVE_STREAM)
+                        .setResultListener { result, _ -> handleMediaPipeResult(result) }
+                        .setErrorListener { _ -> isProcessing.set(false) }
+                        .build()
 
-                mediaPipeDetector = PoseLandmarker.createFromOptions(context, options)
+                    mediaPipeDetector = PoseLandmarker.createFromOptions(context, options)
+                } catch (_: Exception) {
+                    val baseOptions = BaseOptions.builder()
+                        .setModelAssetPath(modelFile)
+                        .setDelegate(Delegate.CPU)
+                        .build()
+
+                    val options = PoseLandmarker.PoseLandmarkerOptions.builder()
+                        .setBaseOptions(baseOptions)
+                        .setMinPoseDetectionConfidence(0.5f)
+                        .setMinPosePresenceConfidence(0.5f)
+                        .setMinTrackingConfidence(0.5f)
+                        .setRunningMode(RunningMode.LIVE_STREAM)
+                        .setResultListener { result, _ -> handleMediaPipeResult(result) }
+                        .setErrorListener { _ -> isProcessing.set(false) }
+                        .build()
+
+                    mediaPipeDetector = PoseLandmarker.createFromOptions(context, options)
+                }
             }
             TrackerModelType.MLKIT -> {
                 val options = PoseDetectorOptions.Builder()
@@ -176,26 +195,33 @@ class PoseTracker(
                 rawBitmap.copy(configToUse, true)
             } else null
 
-            // Create a independent, standalone Bitmap clone to prevent native C++ tensor buffer sharing
-            val processingBitmap = if (rotationDegrees != 0) {
+            val rotatedBitmap = if (rotationDegrees != 0) {
                 val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
                 Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
                     if (it != rawBitmap) rawBitmap.recycle()
                 }
             } else {
-                rawBitmap.copy(configToUse, true).also {
-                    rawBitmap.recycle()
-                }
+                rawBitmap
             }
 
-            val mpImage: MPImage = BitmapImageBuilder(processingBitmap).build()
+            // Perform center crop AFTER rotation to guarantee a true 1:1 aspect ratio square input
+            val minDim = minOf(rotatedBitmap.width, rotatedBitmap.height)
+            val startX = (rotatedBitmap.width - minDim) / 2
+            val startY = (rotatedBitmap.height - minDim) / 2
+            val squareBitmap = Bitmap.createBitmap(rotatedBitmap, startX, startY, minDim, minDim).also {
+                if (it != rotatedBitmap) rotatedBitmap.recycle()
+            }
+
+            val mpImage: MPImage = BitmapImageBuilder(squareBitmap).build()
 
             try {
+                // Call directly on analyzer thread to keep frame execution synchronized
                 mediaPipeDetector?.detectAsync(mpImage, now)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
+                squareBitmap.recycle()
+                activeRawBitmap?.recycle()
+                activeRawBitmap = null
                 isProcessing.set(false)
-            } finally {
-                processingBitmap.recycle()
             }
         }
     }
@@ -247,7 +273,7 @@ class PoseTracker(
         return PoseFrame(
             timestampMs = System.currentTimeMillis(),
             imageWidth = 480,
-            imageHeight = 640,
+            imageHeight = 480,
             joints = joints
         )
     }

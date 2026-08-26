@@ -106,7 +106,7 @@ class TrackingController(
             val resolutionSelector = ResolutionSelector.Builder()
                 .setResolutionStrategy(
                     ResolutionStrategy(
-                        Size(480, 640),
+                        Size(480, 480),
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 )
