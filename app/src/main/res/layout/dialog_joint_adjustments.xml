@@ -46,8 +46,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
+                android:max="100"
+                android:progress="50" />
 
             <View
                 android:layout_width="match_parent"
@@ -55,7 +55,7 @@
                 android:layout_marginVertical="8dp"
                 android:background="#00FFCC" />
 
-            <!-- HEAD -->
+            <!-- 1. HEAD -->
             <CheckBox
                 android:id="@+id/headCheckBox"
                 android:layout_width="match_parent"
@@ -81,8 +81,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
+                android:max="100"
+                android:progress="50" />
 
             <View
                 android:layout_width="match_parent"
@@ -90,42 +90,7 @@
                 android:layout_marginVertical="8dp"
                 android:background="#2A2A2A" />
 
-            <!-- HIP -->
-            <CheckBox
-                android:id="@+id/hipCheckBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Enable Hip Tracker"
-                android:textColor="#00FFCC"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/hipLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Hip Offset (Y: 0.00m)"
-                android:textColor="#E0E0E0"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/hipYSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="8dp"
-                android:background="#2A2A2A" />
-
-            <!-- CHEST -->
+            <!-- 2. CHEST -->
             <CheckBox
                 android:id="@+id/chestCheckBox"
                 android:layout_width="match_parent"
@@ -151,8 +116,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
+                android:max="100"
+                android:progress="50" />
 
             <View
                 android:layout_width="match_parent"
@@ -160,95 +125,7 @@
                 android:layout_marginVertical="8dp"
                 android:background="#2A2A2A" />
 
-            <!-- FEET -->
-            <CheckBox
-                android:id="@+id/feetCheckBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Enable Feet Trackers"
-                android:textColor="#00FFCC"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/feetLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Feet Offset (Sym X: 0.00m, Y: 0.00m)"
-                android:textColor="#E0E0E0"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/feetXSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:max="200"
-                android:progress="100" />
-
-            <SeekBar
-                android:id="@+id/feetYSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="8dp"
-                android:background="#2A2A2A" />
-
-            <!-- KNEES -->
-            <CheckBox
-                android:id="@+id/kneesCheckBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Enable Knees Trackers"
-                android:textColor="#00FFCC"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/kneesLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Knees Offset (Sym X: 0.00m, Y: 0.00m)"
-                android:textColor="#E0E0E0"
-                android:textSize="14sp" />
-
-            <SeekBar
-                android:id="@+id/kneesXSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:max="200"
-                android:progress="100" />
-
-            <SeekBar
-                android:id="@+id/kneesYSeekBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="12dp"
-                android:max="200"
-                android:progress="100" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="8dp"
-                android:background="#2A2A2A" />
-
-            <!-- ELBOWS -->
+            <!-- 3. ELBOWS -->
             <CheckBox
                 android:id="@+id/elbowsCheckBox"
                 android:layout_width="match_parent"
@@ -274,17 +151,140 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
-                android:max="200"
-                android:progress="100" />
+                android:max="100"
+                android:progress="50" />
 
             <SeekBar
                 android:id="@+id/elbowsYSeekBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp"
+                android:max="100"
+                android:progress="50" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="#2A2A2A" />
+
+            <!-- 4. HIP -->
+            <CheckBox
+                android:id="@+id/hipCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Enable Hip Tracker"
+                android:textColor="#00FFCC"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/hipLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Hip Offset (Y: 0.00m)"
+                android:textColor="#E0E0E0"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/hipYSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp"
+                android:max="100"
+                android:progress="50" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="#2A2A2A" />
+
+            <!-- 5. KNEES -->
+            <CheckBox
+                android:id="@+id/kneesCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Enable Knees Trackers"
+                android:textColor="#00FFCC"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/kneesLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Knees Offset (Sym X: 0.00m, Y: 0.00m)"
+                android:textColor="#E0E0E0"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/kneesXSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:max="100"
+                android:progress="50" />
+
+            <SeekBar
+                android:id="@+id/kneesYSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp"
+                android:max="100"
+                android:progress="50" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="#2A2A2A" />
+
+            <!-- 6. FEET -->
+            <CheckBox
+                android:id="@+id/feetCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Enable Feet Trackers"
+                android:textColor="#00FFCC"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/feetLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Feet Offset (Sym X: 0.00m, Y: 0.00m)"
+                android:textColor="#E0E0E0"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/feetXSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:max="100"
+                android:progress="50" />
+
+            <SeekBar
+                android:id="@+id/feetYSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="16dp"
-                android:max="200"
-                android:progress="100" />
+                android:max="100"
+                android:progress="50" />
 
         </LinearLayout>
     </ScrollView>
