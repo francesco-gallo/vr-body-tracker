@@ -114,6 +114,8 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
             trackingController.streamEnabled = false
             binding.streamButton.text = getString(R.string.start_stream)
             binding.statusText.text = getString(R.string.status_idle)
+            binding.ipEditText.isEnabled = true
+            binding.portEditText.isEnabled = true
         }
         trackingController.cameraProvider?.unbindAll()
     }
@@ -219,6 +221,9 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
             trackingController.streamEnabled = !trackingController.streamEnabled
             binding.streamButton.text = if (trackingController.streamEnabled) getString(R.string.stop_stream) else getString(R.string.start_stream)
             binding.statusText.text = if (trackingController.streamEnabled) getString(R.string.status_streaming, currentConfig.ip, currentConfig.port) else getString(R.string.status_idle)
+            // Prevent editing the destination while actively streaming to it.
+            binding.ipEditText.isEnabled = !trackingController.streamEnabled
+            binding.portEditText.isEnabled = !trackingController.streamEnabled
         }
 
         binding.toggleUiButton.setOnClickListener {
@@ -342,8 +347,10 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
     private fun setUiControlsEnabled(enabled: Boolean) {
         binding.calibrateButton.isEnabled = enabled
         binding.resetButton.isEnabled = enabled
-        binding.ipEditText.isEnabled = enabled
-        binding.portEditText.isEnabled = enabled
+        // IP/port must stay locked while streaming, regardless of other controls' state.
+        val allowEndpointEdit = enabled && !trackingController.streamEnabled
+        binding.ipEditText.isEnabled = allowEndpointEdit
+        binding.portEditText.isEnabled = allowEndpointEdit
         binding.heightSeekBar.isEnabled = enabled
         binding.fpsSeekBar.isEnabled = enabled
         binding.invertCameraSwitch.isEnabled = enabled

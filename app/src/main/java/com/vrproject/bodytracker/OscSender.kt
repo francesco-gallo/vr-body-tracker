@@ -17,6 +17,18 @@ class OscSender {
     private val socket = DatagramSocket()
     private val buffer = ByteBuffer.allocate(8192).order(ByteOrder.BIG_ENDIAN)
 
+    // Caches the last resolved address so we don't pay a DNS/parsing cost on every frame.
+    @Volatile private var cachedHost: String? = null
+    @Volatile private var cachedAddress: InetAddress? = null
+
+    private fun resolve(host: String): InetAddress {
+        cachedAddress?.let { if (cachedHost == host) return it }
+        val resolved = InetAddress.getByName(host)
+        cachedHost = host
+        cachedAddress = resolved
+        return resolved
+    }
+
     suspend fun checkEndpoint(host: String, port: Int): Boolean {
         if (host.isBlank() || port !in 1..65535) {
             return false
@@ -48,7 +60,7 @@ class OscSender {
         }
 
         withContext(Dispatchers.IO) {
-            val address = InetAddress.getByName(host)
+            val address = resolve(host)
             synchronized(buffer) {
                 buffer.clear()
                 if (bundle) {
