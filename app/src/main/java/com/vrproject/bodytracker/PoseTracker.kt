@@ -23,7 +23,6 @@ import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class JointSample(
@@ -50,15 +49,14 @@ class PoseTracker(
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
-    private val offloadExecutor = Executors.newSingleThreadExecutor()
     @Volatile private var lastAnalyzedTimeMs = 0L
 
     private var currentModelType: TrackerModelType? = null
     private var mediaPipeDetector: PoseLandmarker? = null
     private var mlKitDetector: com.google.mlkit.vision.pose.PoseDetector? = null
 
-    private var activeRawBitmap: Bitmap? = null
-    private var activeRotationDegrees: Int = 0
+    @Volatile private var activeRawBitmap: Bitmap? = null
+    @Volatile private var activeRotationDegrees: Int = 0
 
     private fun ensureEngine(desired: TrackerModelType) {
         if (currentModelType == desired) return
@@ -129,6 +127,9 @@ class PoseTracker(
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        activeRotationDegrees = rotationDegrees
+
+        val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
 
         if (desiredModel == TrackerModelType.MLKIT) {
             val mediaImage = imageProxy.image
@@ -138,7 +139,7 @@ class PoseTracker(
                 return
             }
 
-            val capturedBitmap = if (onCheckShouldCaptureBitmap?.invoke() == true) {
+            val capturedBitmap = if (shouldCaptureBitmap) {
                 try { imageProxy.toBitmap() } catch (_: Exception) { null }
             } else null
 
@@ -160,43 +161,41 @@ class PoseTracker(
                     imageProxy.close()
                 }
         } else {
-            offloadExecutor.execute {
-                try {
-                    val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
-                    val rawBitmap = try {
-                        imageProxy.toBitmap()
-                    } catch (_: Exception) {
-                        null
-                    }
+            val rawBitmap = try {
+                imageProxy.toBitmap()
+            } catch (_: Exception) {
+                isProcessing.set(false)
+                imageProxy.close()
+                return
+            } finally {
+                imageProxy.close()
+            }
 
-                    if (rawBitmap == null) {
-                        isProcessing.set(false)
-                        imageProxy.close()
-                        return@execute
-                    }
+            val configToUse = rawBitmap.config ?: Bitmap.Config.ARGB_8888
+            activeRawBitmap = if (shouldCaptureBitmap) {
+                rawBitmap.copy(configToUse, true)
+            } else null
 
-                    activeRotationDegrees = rotationDegrees
-
-                    // Explicitly fallback to ARGB_8888 if rawBitmap.config is null
-                    val configToUse = rawBitmap.config ?: Bitmap.Config.ARGB_8888
-                    activeRawBitmap = if (shouldCaptureBitmap) rawBitmap.copy(configToUse, true) else null
-
-                    val rotatedBitmap = if (rotationDegrees != 0) {
-                        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                        Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
-                            if (it != rawBitmap) rawBitmap.recycle()
-                        }
-                    } else {
-                        rawBitmap
-                    }
-
-                    val mpImage: MPImage = BitmapImageBuilder(rotatedBitmap).build()
-                    mediaPipeDetector?.detectAsync(mpImage, now)
-                } catch (_: Exception) {
-                    isProcessing.set(false)
-                } finally {
-                    imageProxy.close()
+            // Create a independent, standalone Bitmap clone to prevent native C++ tensor buffer sharing
+            val processingBitmap = if (rotationDegrees != 0) {
+                val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
+                    if (it != rawBitmap) rawBitmap.recycle()
                 }
+            } else {
+                rawBitmap.copy(configToUse, true).also {
+                    rawBitmap.recycle()
+                }
+            }
+
+            val mpImage: MPImage = BitmapImageBuilder(processingBitmap).build()
+
+            try {
+                mediaPipeDetector?.detectAsync(mpImage, now)
+            } catch (e: Exception) {
+                isProcessing.set(false)
+            } finally {
+                processingBitmap.recycle()
             }
         }
     }
@@ -300,7 +299,6 @@ class PoseTracker(
 
     fun close() {
         closeEngines()
-        offloadExecutor.shutdown()
     }
 
     companion object {

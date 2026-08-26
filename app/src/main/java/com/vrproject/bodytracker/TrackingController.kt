@@ -20,6 +20,8 @@ import java.util.concurrent.Executors
 class TrackingController(
     private val activity: AppCompatActivity,
     private val appScope: CoroutineScope,
+    private val configProvider: () -> AppConfig,
+    private val cameraInfoProvider: () -> CameraItem?,
     private val onFrameProcessed: (PoseFrame) -> Unit,
     private val onWebFrameReady: (Bitmap, PoseFrame, Int) -> Unit,
     private val onCameraFpsUpdated: (Float, String) -> Unit,
@@ -44,15 +46,11 @@ class TrackingController(
     private var activeCameraLevelName = "Checking..."
     private var lastSentAtMs = 0L
 
-    fun initTracker(
-        modelTypeProvider: () -> TrackerModelType,
-        targetFpsProvider: () -> Int,
-        hasWebClientsProvider: () -> Boolean
-    ) {
+    fun initTracker(hasWebClientsProvider: () -> Boolean) {
         poseTracker = PoseTracker(
             context = activity,
-            modelTypeProvider = modelTypeProvider,
-            targetFpsProvider = targetFpsProvider,
+            modelTypeProvider = { configProvider().modelType },
+            targetFpsProvider = { configProvider().fps },
             onCheckShouldCaptureBitmap = hasWebClientsProvider
         ) { rawFrame, rawBitmap, rotationDegrees ->
             updateCameraCaptureFps(rawFrame.timestampMs)
@@ -68,14 +66,14 @@ class TrackingController(
 
             if (!streamEnabled) return@PoseTracker
 
-            val config = (activity as? ConfigProvider)?.currentConfig ?: return@PoseTracker
+            val config = configProvider()
             if (config.ip.isEmpty()) return@PoseTracker
 
             if (!canSendNow(processedFrame.timestampMs, config.fps)) {
                 return@PoseTracker
             }
 
-            val isFront = (activity as? CameraProviderInfo)?.selectedCameraItem?.isFront ?: false
+            val isFront = cameraInfoProvider()?.isFront ?: false
             val messages = PoseOscMapper.toMessages(
                 frame = processedFrame,
                 estimatedHeightMeters = config.heightMeters,
@@ -151,7 +149,7 @@ class TrackingController(
             PoseOscMapper.calibrateRoot(frame)
             pendingCalibration = false
         }
-        val config = (activity as? ConfigProvider)?.currentConfig ?: AppConfig()
+        val config = configProvider()
         val alpha = (config.smoothing / 100f).coerceIn(0f, 0.95f)
         return poseProcessor.process(frame, StreamConfig(smoothingAlpha = alpha))
     }

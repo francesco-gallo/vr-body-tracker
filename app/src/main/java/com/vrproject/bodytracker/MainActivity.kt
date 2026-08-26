@@ -69,6 +69,14 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
                 val provider = providerFuture.get()
                 cameraManager.queryAvailableCameras(provider, currentConfig.cameraId)
                 updateCameraSpinner()
+
+                cameraManager.selectedCameraItem?.let { selected ->
+                    if (currentConfig.cameraId != selected.id) {
+                        currentConfig = currentConfig.copy(cameraId = selected.id)
+                        persistCurrentConfig()
+                    }
+                }
+
                 trackingController.bindUseCases(binding.previewView.surfaceProvider, cameraManager.selectedCameraItem)
             },
             onPermissionDenied = {
@@ -80,6 +88,8 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         trackingController = TrackingController(
             activity = this,
             appScope = appScope,
+            configProvider = { currentConfig },
+            cameraInfoProvider = { cameraManager.selectedCameraItem },
             onFrameProcessed = { frame -> updateOverlay(frame) },
             onWebFrameReady = { rawBitmap, frame, rotation -> processWebFrame(rawBitmap, frame, rotation) },
             onCameraFpsUpdated = { fps, level -> updateCameraInfoUi(fps, level) },
@@ -87,8 +97,6 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         )
 
         trackingController.initTracker(
-            modelTypeProvider = { currentConfig.modelType },
-            targetFpsProvider = { currentConfig.fps },
             hasWebClientsProvider = { mjpegServer?.hasClients() == true }
         )
     }
@@ -146,8 +154,10 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
                 val items = cameraManager.availableCameras
                 if (pos in items.indices && cameraManager.selectedCameraItem?.id != items[pos].id) {
-                    cameraManager.selectCamera(items[pos])
-                    trackingController.bindUseCases(binding.previewView.surfaceProvider, items[pos])
+                    val selectedItem = items[pos]
+                    cameraManager.selectCamera(selectedItem)
+                    currentConfig = currentConfig.copy(cameraId = selectedItem.id)
+                    trackingController.bindUseCases(binding.previewView.surfaceProvider, selectedItem)
                     persistCurrentConfig()
                 }
             }
