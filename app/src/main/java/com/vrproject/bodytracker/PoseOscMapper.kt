@@ -110,35 +110,35 @@ object PoseOscMapper {
 
         // 1: Hip
         if (config.enableHip) {
-            appendIndexedTracker(reusableMessageList, 1, hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "1", hip, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.hipOffset.x, config.hipOffset.y, gz)
         }
 
         // 2: Chest
         if (config.enableChest) {
-            appendIndexedTracker(reusableMessageList, 2, chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "2", chest, torsoRot, rootAnchor, metersPerNorm, xMultiplier, config.chestOffset.x, config.chestOffset.y, gz)
         }
 
         // 3: Left Foot & 4: Right Foot
         if (config.enableFeet) {
-            appendIndexedTracker(reusableMessageList, 3, leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y, gz)
-            appendIndexedTracker(reusableMessageList, 4, rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "3", leftFoot, leftFootRot, rootAnchor, metersPerNorm, xMultiplier, -config.feetOffset.x, config.feetOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "4", rightFoot, rightFootRot, rootAnchor, metersPerNorm, xMultiplier, config.feetOffset.x, config.feetOffset.y, gz)
         }
 
         // 5: Left Knee & 6: Right Knee
         if (config.enableKnees) {
-            appendIndexedTracker(reusableMessageList, 5, leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y, gz)
-            appendIndexedTracker(reusableMessageList, 6, rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "5", leftKnee, leftKneeRot, rootAnchor, metersPerNorm, xMultiplier, -config.kneesOffset.x, config.kneesOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "6", rightKnee, rightKneeRot, rootAnchor, metersPerNorm, xMultiplier, config.kneesOffset.x, config.kneesOffset.y, gz)
         }
 
         // 7: Left Elbow & 8: Right Elbow
         if (config.enableElbows) {
-            appendIndexedTracker(reusableMessageList, 7, leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y, gz)
-            appendIndexedTracker(reusableMessageList, 8, rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "7", leftElbow, leftElbowRot, rootAnchor, metersPerNorm, xMultiplier, -config.elbowsOffset.x, config.elbowsOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "8", rightElbow, rightElbowRot, rootAnchor, metersPerNorm, xMultiplier, config.elbowsOffset.x, config.elbowsOffset.y, gz)
         }
 
-        // 9: Head
+        // Head (inviato sotto il percorso /head/ anziché /9/)
         if (config.enableHead) {
-            appendIndexedTracker(reusableMessageList, 9, head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y, gz)
+            appendIndexedTracker(reusableMessageList, "head", head, headRot, rootAnchor, metersPerNorm, xMultiplier, config.headOffset.x, config.headOffset.y, gz)
         }
 
         return reusableMessageList
@@ -156,7 +156,7 @@ object PoseOscMapper {
 
     private fun appendIndexedTracker(
         out: MutableList<OscMessageData>,
-        trackerIndex: Int,
+        trackerId: String,
         joint: JointSample?,
         rotationEuler: Vec3,
         origin: JointSample,
@@ -171,13 +171,13 @@ object PoseOscMapper {
         val p = toTrackingVector(joint, origin, metersPerNorm, xMultiplier, offsetX, offsetY, offsetZ)
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$trackerIndex/position",
+                address = "/tracking/trackers/$trackerId/position",
                 args = listOf(p.x, p.y, p.z)
             )
         )
         out.add(
             OscMessageData(
-                address = "/tracking/trackers/$trackerIndex/rotation",
+                address = "/tracking/trackers/$trackerId/rotation",
                 args = listOf(rotationEuler.x, rotationEuler.y, rotationEuler.z)
             )
         )
