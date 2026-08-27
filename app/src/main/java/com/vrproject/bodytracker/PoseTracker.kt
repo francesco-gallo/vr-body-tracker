@@ -263,7 +263,7 @@ class PoseTracker(
                         name = name,
                         x = lm.x(),
                         y = lm.y(),
-                        z = worldLm?.z() ?: (lm.z() * 1000f),
+                        z = (worldLm?.z() ?: lm.z()) * 1000f,
                         visibility = lm.presence().orElse(0.5f)
                     )
                 }
