@@ -11,6 +11,7 @@
     <string name="camera_back">Fotocamera Posteriore</string>
     <string name="debug_waiting">In attesa dei frame della fotocamera...</string>
     <string name="smoothing_label_value">Smoothing: %1$d%%</string>
+    <string name="fps_label_value">Target FPS: %1$d</string>
     <string name="start_stream">Start Stream</string>
     <string name="stop_stream">Stop Stream</string>
     <string name="hide_ui">Hide UI</string>

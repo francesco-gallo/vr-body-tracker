@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
     }
 
     private fun setupUi() {
-        val modelTypes = TrackerModelType.values()
+        val modelTypes = TrackerModelType.entries
         binding.modelSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelTypes.map { it.displayName })
         binding.modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         })
 
         binding.fpsSeekBar.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            binding.fpsLabel.text = "Target FPS: ${progress + 10}"
+            binding.fpsLabel.text = getString(R.string.fps_label_value, progress + 10)
             cacheUpdateListener()
         })
 
@@ -280,13 +280,13 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         binding.heightLabel.text = String.format(Locale.US, "User Height: %.2f m", config.heightMeters)
 
         binding.fpsSeekBar.progress = (config.fps - 10).coerceIn(0, 50)
-        binding.fpsLabel.text = "Target FPS: ${config.fps}"
+        binding.fpsLabel.text = getString(R.string.fps_label_value, config.fps)
 
         binding.smoothingSeekBar.progress = config.smoothing
         binding.invertCameraSwitch.isChecked = config.invertCamera
         binding.smoothingLabel.text = getString(R.string.smoothing_label_value, config.smoothing)
 
-        val index = TrackerModelType.values().indexOf(config.modelType)
+        val index = TrackerModelType.entries.indexOf(config.modelType)
         if (index >= 0) binding.modelSpinner.setSelection(index)
 
         updateButtonState()
