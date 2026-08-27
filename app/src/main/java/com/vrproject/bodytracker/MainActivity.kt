@@ -142,8 +142,9 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         val now = System.currentTimeMillis()
         if (now - lastWebFrameTimeMs > 66) {
             lastWebFrameTimeMs = now
+            val mirrorX = currentConfig.invertCamera xor (cameraManager.selectedCameraItem?.isFront ?: false)
             appScope.launch(Dispatchers.Default) {
-                val processedJpeg = PoseTracker.renderProcessedWebFrame(rawBitmap, frame, rotation)
+                val processedJpeg = PoseTracker.renderProcessedWebFrame(rawBitmap, frame, rotation, mirrorX)
                 rawBitmap.recycle()
                 if (processedJpeg != null) mjpegServer?.updateFrame(processedJpeg)
             }

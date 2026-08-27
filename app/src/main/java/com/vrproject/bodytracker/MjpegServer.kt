@@ -12,6 +12,10 @@ class MjpegServer(port: Int = 8080) : NanoHTTPD(port) {
 
     private val activeConnections = AtomicInteger(0)
 
+    companion object {
+        private const val NO_FRAME_TIMEOUT_MS = 10_000L
+    }
+
     fun hasClients(): Boolean = activeConnections.get() > 0
 
     fun updateFrame(jpegBytes: ByteArray) {
@@ -25,19 +29,29 @@ class MjpegServer(port: Int = 8080) : NanoHTTPD(port) {
         val stream = object : InputStream() {
             private var currentStream: ByteArrayInputStream? = null
 
-            // NanoHTTPD's chunked response reads via the bulk read(byte[], off, len) below,
-            // but InputStream still requires the single-byte read() to be implemented.
+            // NanoHTTPD's sendBody() loop treats any read() <= 0 as end-of-stream and
+            // immediately terminates the chunked response (writes the closing "0\r\n\r\n"
+            // chunk). Previously this method returned null after a single 30ms sleep
+            // whenever no frame had been captured yet (e.g. right when a client connects,
+            // before the first web frame is processed), which caused the MJPEG stream to
+            // end instantly with no image ever sent. Now it blocks/polls until a frame
+            // becomes available, only giving up after a generous timeout (so a client that
+            // connects while streaming is off eventually gets a closed connection instead
+            // of hanging forever).
             private fun ensureCurrentStream(): ByteArrayInputStream? {
                 if (currentStream != null && currentStream!!.available() > 0) {
                     return currentStream
                 }
-                val frame = latestJpeg
-                if (frame == null) {
+                var waitedMs = 0L
+                while (latestJpeg == null && waitedMs < NO_FRAME_TIMEOUT_MS) {
                     try {
                         Thread.sleep(30)
-                    } catch (_: Exception) {}
-                    return null
+                    } catch (_: Exception) {
+                        return null
+                    }
+                    waitedMs += 30
                 }
+                val frame = latestJpeg ?: return null
                 val header = "--$boundary\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.size}\r\n\r\n"
                 val footer = "\r\n"
                 val payload = header.toByteArray() + frame + footer.toByteArray()
