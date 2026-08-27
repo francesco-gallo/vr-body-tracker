@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         binding.modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
                 currentConfig = currentConfig.copy(modelType = modelTypes[pos])
-                persistCurrentConfig()
+                if (!isPopulatingUi) persistCurrentConfig()
             }
             override fun onNothingSelected(p: AdapterView<*>?) {}
         }
@@ -171,13 +171,17 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
                     cameraManager.selectCamera(selectedItem)
                     currentConfig = currentConfig.copy(cameraId = selectedItem.id)
                     trackingController.bindUseCases(binding.previewView.surfaceProvider, selectedItem)
-                    persistCurrentConfig()
+                    if (!isPopulatingUi) persistCurrentConfig()
                 }
             }
             override fun onNothingSelected(p: AdapterView<*>?) {}
         }
 
-        val cacheUpdateListener = { updateConfigFromUi(); updateButtonState(); persistCurrentConfig() }
+        val cacheUpdateListener = {
+            if (!isPopulatingUi) {
+                updateConfigFromUi(); updateButtonState(); persistCurrentConfig()
+            }
+        }
         binding.ipEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
         binding.portEditText.doOnTextChanged { _, _, _, _ -> cacheUpdateListener() }
 
@@ -195,7 +199,7 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
         binding.invertCameraSwitch.setOnCheckedChangeListener { _, checked ->
             currentConfig = currentConfig.copy(invertCamera = checked)
             updateOverlayMirroring()
-            persistCurrentConfig()
+            if (!isPopulatingUi) persistCurrentConfig()
         }
 
         binding.adjustJointsButton.setOnClickListener {
