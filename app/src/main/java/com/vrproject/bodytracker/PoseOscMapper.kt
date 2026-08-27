@@ -172,13 +172,13 @@ object PoseOscMapper {
         out.add(
             OscMessageData(
                 address = "/tracking/trackers/$trackerId/position",
-                args = listOf(p.x, p.y, p.z)
+                args = floatArrayOf(p.x, p.y, p.z)
             )
         )
         out.add(
             OscMessageData(
                 address = "/tracking/trackers/$trackerId/rotation",
-                args = listOf(rotationEuler.x, rotationEuler.y, rotationEuler.z)
+                args = floatArrayOf(rotationEuler.x, rotationEuler.y, rotationEuler.z)
             )
         )
     }

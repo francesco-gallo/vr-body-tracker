@@ -10,8 +10,18 @@ import java.nio.ByteOrder
 
 data class OscMessageData(
     val address: String,
-    val args: List<Any>
-)
+    val args: FloatArray
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is OscMessageData) return false
+        return address == other.address && args.contentEquals(other.args)
+    }
+
+    override fun hashCode(): Int {
+        return 31 * address.hashCode() + args.contentHashCode()
+    }
+}
 
 class OscSender {
     private val socket = DatagramSocket()
@@ -109,33 +119,18 @@ private object OscEncoding {
     fun encodeMessage(message: OscMessageData, buffer: ByteBuffer) {
         writePaddedString(buffer, message.address)
 
-        val typeTags = buildTypeTags(message.args)
+        val typeTags = buildTypeTags(message.args.size)
         writePaddedString(buffer, typeTags)
 
         for (arg in message.args) {
-            when (arg) {
-                is Int -> buffer.putInt(arg)
-                is Float -> buffer.putFloat(arg)
-                is Double -> buffer.putFloat(arg.toFloat())
-                is String -> writePaddedString(buffer, arg)
-                else -> writePaddedString(buffer, arg.toString())
-            }
+            buffer.putFloat(arg)
         }
     }
 
-    private fun buildTypeTags(args: List<Any>): String {
-        val tags = StringBuilder(",")
-        for (arg in args) {
-            tags.append(
-                when (arg) {
-                    is Int -> 'i'
-                    is Float -> 'f'
-                    is Double -> 'f'
-                    is String -> 's'
-                    else -> 's'
-                }
-            )
-        }
+    private fun buildTypeTags(argCount: Int): String {
+        val tags = StringBuilder(1 + argCount)
+        tags.append(',')
+        repeat(argCount) { tags.append('f') }
         return tags.toString()
     }
 

@@ -48,6 +48,21 @@ class JointOverlayView @JvmOverloads constructor(
 
     private val pathBuffer = Path()
 
+    // Reused scratch buffers for the 8 beam corner points computed per-bone in
+    // drawTorqued3DBoxBeam, avoiding 8 fresh FloatArray allocations per bone per frame.
+    private val cornerF1 = FloatArray(3)
+    private val cornerF2 = FloatArray(3)
+    private val cornerF3 = FloatArray(3)
+    private val cornerF4 = FloatArray(3)
+    private val cornerB1 = FloatArray(3)
+    private val cornerB2 = FloatArray(3)
+    private val cornerB3 = FloatArray(3)
+    private val cornerB4 = FloatArray(3)
+
+    // Reused across frames to avoid rebuilding a name->joint map (plus the chest/hip
+    // midpoint JointSample objects) on every single onDraw call.
+    private val jointsByName = HashMap<String, JointSample>(24)
+
     fun setFrameJoints(
         items: List<JointSample>,
         shouldMirrorX: Boolean,
@@ -58,6 +73,36 @@ class JointOverlayView @JvmOverloads constructor(
         mirrorX = shouldMirrorX
         currentSourceWidth = if (sourceWidth > 0) sourceWidth else 1
         currentSourceHeight = if (sourceHeight > 0) sourceHeight else 1
+
+        jointsByName.clear()
+        for (i in items.indices) {
+            val joint = items[i]
+            jointsByName[joint.name] = joint
+        }
+
+        val ls = jointsByName["left_shoulder"]
+        val rs = jointsByName["right_shoulder"]
+        if (ls != null && rs != null) {
+            jointsByName["chest_mid"] = JointSample(
+                name = "chest_mid",
+                x = (ls.x + rs.x) * 0.5f,
+                y = (ls.y + rs.y) * 0.5f,
+                z = (ls.z + rs.z) * 0.5f,
+                visibility = (ls.visibility + rs.visibility) * 0.5f
+            )
+        }
+
+        val lh = jointsByName["left_hip"]
+        val rh = jointsByName["right_hip"]
+        if (lh != null && rh != null) {
+            jointsByName["hip_mid"] = JointSample(
+                name = "hip_mid",
+                x = (lh.x + rh.x) * 0.5f,
+                y = (lh.y + rh.y) * 0.5f,
+                z = (lh.z + rh.z) * 0.5f,
+                visibility = (lh.visibility + rh.visibility) * 0.5f
+            )
+        }
 
         invalidate()
     }
@@ -77,31 +122,7 @@ class JointOverlayView @JvmOverloads constructor(
         val viewW = width.toFloat()
         val viewH = height.toFloat()
 
-        val byName = currentFrameJoints.associateBy { it.name }.toMutableMap()
-
-        val ls = byName["left_shoulder"]
-        val rs = byName["right_shoulder"]
-        if (ls != null && rs != null) {
-            byName["chest_mid"] = JointSample(
-                name = "chest_mid",
-                x = (ls.x + rs.x) * 0.5f,
-                y = (ls.y + rs.y) * 0.5f,
-                z = (ls.z + rs.z) * 0.5f,
-                visibility = (ls.visibility + rs.visibility) * 0.5f
-            )
-        }
-
-        val lh = byName["left_hip"]
-        val rh = byName["right_hip"]
-        if (lh != null && rh != null) {
-            byName["hip_mid"] = JointSample(
-                name = "hip_mid",
-                x = (lh.x + rh.x) * 0.5f,
-                y = (lh.y + rh.y) * 0.5f,
-                z = (lh.z + rh.z) * 0.5f,
-                visibility = (lh.visibility + rh.visibility) * 0.5f
-            )
-        }
+        val byName = jointsByName
 
         // Calculate 20 cm box width proportional to average torso scale in screen space
         val pixelScale = estimateScreenPixelsPerMeter(byName, viewH)
@@ -134,11 +155,10 @@ class JointOverlayView @JvmOverloads constructor(
 
         // 2. Draw Joint Markers & Coordinates
         val axisLength = 30f
-        val drawableJoints = byName.values.filter {
-            it.name in TARGET_DISPLAY_JOINTS && it.visibility > 0.3f
-        }
 
-        for (joint in drawableJoints) {
+        for (joint in byName.values) {
+            if (joint.name !in TARGET_DISPLAY_JOINTS || joint.visibility <= 0.3f) continue
+
             val px = getMappedX(joint.x, viewW)
             val py = joint.y * viewH
 
@@ -212,16 +232,19 @@ class JointOverlayView @JvmOverloads constructor(
         val perpZ2 = (-refZ * sinT + upZ * cosT)
 
         // 4 corners in 3D space for Source Joint
-        val f1 = floatArrayOf(x1 + perpX1 * radius1, y1 + perpY1 * radius1, z1 + perpZ1 * radius1)
-        val f2 = floatArrayOf(x1 + perpX2 * radius1, y1 + perpY2 * radius1, z1 + perpZ2 * radius1)
-        val f3 = floatArrayOf(x1 - perpX1 * radius1, y1 - perpY1 * radius1, z1 - perpZ1 * radius1)
-        val f4 = floatArrayOf(x1 - perpX2 * radius1, y1 - perpY2 * radius1, z1 - perpZ2 * radius1)
+        cornerF1[0] = x1 + perpX1 * radius1; cornerF1[1] = y1 + perpY1 * radius1; cornerF1[2] = z1 + perpZ1 * radius1
+        cornerF2[0] = x1 + perpX2 * radius1; cornerF2[1] = y1 + perpY2 * radius1; cornerF2[2] = z1 + perpZ2 * radius1
+        cornerF3[0] = x1 - perpX1 * radius1; cornerF3[1] = y1 - perpY1 * radius1; cornerF3[2] = z1 - perpZ1 * radius1
+        cornerF4[0] = x1 - perpX2 * radius1; cornerF4[1] = y1 - perpY2 * radius1; cornerF4[2] = z1 - perpZ2 * radius1
 
         // 4 corners in 3D space for Target Joint
-        val b1 = floatArrayOf(x2 + perpX1 * radius2, y2 + perpY1 * radius2, z2 + perpZ1 * radius2)
-        val b2 = floatArrayOf(x2 + perpX2 * radius2, y2 + perpY2 * radius2, z2 + perpZ2 * radius2)
-        val b3 = floatArrayOf(x2 - perpX1 * radius2, y2 - perpY1 * radius2, z2 - perpZ1 * radius2)
-        val b4 = floatArrayOf(x2 - perpX2 * radius2, y2 - perpY2 * radius2, z2 - perpZ2 * radius2)
+        cornerB1[0] = x2 + perpX1 * radius2; cornerB1[1] = y2 + perpY1 * radius2; cornerB1[2] = z2 + perpZ1 * radius2
+        cornerB2[0] = x2 + perpX2 * radius2; cornerB2[1] = y2 + perpY2 * radius2; cornerB2[2] = z2 + perpZ2 * radius2
+        cornerB3[0] = x2 - perpX1 * radius2; cornerB3[1] = y2 - perpY1 * radius2; cornerB3[2] = z2 - perpZ1 * radius2
+        cornerB4[0] = x2 - perpX2 * radius2; cornerB4[1] = y2 - perpY2 * radius2; cornerB4[2] = z2 - perpZ2 * radius2
+
+        val f1 = cornerF1; val f2 = cornerF2; val f3 = cornerF3; val f4 = cornerF4
+        val b1 = cornerB1; val b2 = cornerB2; val b3 = cornerB3; val b4 = cornerB4
 
         // Project 3D coordinates (X, Y, Z) onto 2D viewport
         fun projX(p: FloatArray): Float = p[0] - (p[2] / 150f).coerceIn(-1.5f, 1.5f) * 8f

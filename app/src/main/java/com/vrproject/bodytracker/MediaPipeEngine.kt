@@ -2,6 +2,7 @@ package com.vrproject.bodytracker
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Matrix
 import androidx.camera.core.ImageProxy
 import com.google.mediapipe.framework.image.BitmapImageBuilder
@@ -32,6 +33,27 @@ class MediaPipeEngine(
     @Volatile private var activeRawBitmap: Bitmap? = null
     @Volatile private var activeRotationDegrees: Int = 0
     @Volatile private var onProcessingDone: (() -> Unit)? = null
+
+    // Reused across frames instead of allocating a fresh rotated + cropped bitmap every
+    // analyze() call. Safe to reuse because PoseTracker only starts the next analyze() call
+    // after this frame's detectAsync result has been consumed in handleResult().
+    private var reusableSquareBitmap: Bitmap? = null
+    private var reusableSquareCanvas: Canvas? = null
+    private var reusableSquareDim: Int = -1
+    private val rotationMatrix = Matrix()
+
+    private fun getOrCreateSquareBitmap(dim: Int): Bitmap {
+        val existing = reusableSquareBitmap
+        if (existing != null && reusableSquareDim == dim && !existing.isRecycled) {
+            return existing
+        }
+        existing?.recycle()
+        val bitmap = Bitmap.createBitmap(dim, dim, Bitmap.Config.ARGB_8888)
+        reusableSquareBitmap = bitmap
+        reusableSquareCanvas = Canvas(bitmap)
+        reusableSquareDim = dim
+        return bitmap
+    }
 
     private fun createDetector(context: Context, modelFile: String, delegate: Delegate): PoseLandmarker? {
         return try {
@@ -76,22 +98,31 @@ class MediaPipeEngine(
         val configToUse = rawBitmap.config ?: Bitmap.Config.ARGB_8888
         val capturedBitmap = if (shouldCaptureBitmap) rawBitmap.copy(configToUse, true) else null
 
-        val rotatedBitmap = if (rotationDegrees != 0) {
-            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-            Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
-                if (it != rawBitmap) rawBitmap.recycle()
-            }
+        // Rotation and center-crop-to-square are combined into a single draw onto a
+        // reused square bitmap, avoiding the two extra intermediate bitmap allocations
+        // (rotated, then cropped) that a Bitmap.createBitmap()-based approach requires.
+        val rotatedWidth: Int
+        val rotatedHeight: Int
+        if (rotationDegrees == 90 || rotationDegrees == 270) {
+            rotatedWidth = rawBitmap.height
+            rotatedHeight = rawBitmap.width
         } else {
-            rawBitmap
+            rotatedWidth = rawBitmap.width
+            rotatedHeight = rawBitmap.height
         }
+        val minDim = minOf(rotatedWidth, rotatedHeight)
 
-        // Perform center crop AFTER rotation to guarantee a true 1:1 aspect ratio square input
-        val minDim = minOf(rotatedBitmap.width, rotatedBitmap.height)
-        val startX = (rotatedBitmap.width - minDim) / 2
-        val startY = (rotatedBitmap.height - minDim) / 2
-        val squareBitmap = Bitmap.createBitmap(rotatedBitmap, startX, startY, minDim, minDim).also {
-            if (it != rotatedBitmap) rotatedBitmap.recycle()
+        val squareBitmap = getOrCreateSquareBitmap(minDim)
+        val squareCanvas = reusableSquareCanvas!!
+
+        rotationMatrix.reset()
+        rotationMatrix.postTranslate(-rawBitmap.width / 2f, -rawBitmap.height / 2f)
+        if (rotationDegrees != 0) {
+            rotationMatrix.postRotate(rotationDegrees.toFloat())
         }
+        rotationMatrix.postTranslate(minDim / 2f, minDim / 2f)
+        squareCanvas.drawBitmap(rawBitmap, rotationMatrix, null)
+        rawBitmap.recycle()
 
         val mpImage: MPImage = BitmapImageBuilder(squareBitmap).build()
 
@@ -103,7 +134,7 @@ class MediaPipeEngine(
             // Call directly on analyzer thread to keep frame execution synchronized
             detector.detectAsync(mpImage, timestampMs)
         } catch (_: Exception) {
-            squareBitmap.recycle()
+            // squareBitmap is a reused buffer owned by this engine instance; don't recycle it.
             this.activeRawBitmap?.recycle()
             this.activeRawBitmap = null
             this.onProcessingDone = null
@@ -167,6 +198,9 @@ class MediaPipeEngine(
 
     override fun close() {
         try { detector.close() } catch (_: Exception) {}
+        reusableSquareBitmap?.recycle()
+        reusableSquareBitmap = null
+        reusableSquareCanvas = null
     }
 
     companion object {

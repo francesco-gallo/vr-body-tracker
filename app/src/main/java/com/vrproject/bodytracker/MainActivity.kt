@@ -38,6 +38,12 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
     private var lastStatusUpdateMs = 0L
     private var uiVisible = true
 
+    // Suppresses listener-driven persistCurrentConfig() calls while the UI is being
+    // programmatically populated from the loaded config (setText/setSelection/setChecked
+    // all synchronously fire their listeners, which would otherwise read still-default
+    // widget values and immediately overwrite the freshly loaded settings on disk).
+    private var isPopulatingUi = false
+
     override var currentConfig: AppConfig = AppConfig()
         private set
 
@@ -51,12 +57,17 @@ class MainActivity : AppCompatActivity(), ConfigProvider, CameraProviderInfo {
 
         currentConfig = AppConfigStore.load(this)
 
+        isPopulatingUi = true
         setupManagers()
         startMjpegServer()
         setupUi()
         applyInsets()
         populateUiFromConfig(currentConfig)
         updateLastBuildTimestamp()
+        // Posted so it runs after any listener callbacks Android itself queues as a
+        // side effect of adapter/selection assignment above (e.g. Spinner's initial
+        // selection notification), not just the synchronous ones.
+        binding.root.post { isPopulatingUi = false }
 
         cameraManager.checkAndStartPermissions()
     }
