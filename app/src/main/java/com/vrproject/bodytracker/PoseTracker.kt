@@ -10,18 +10,6 @@ import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.framework.image.MPImage
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.core.Delegate
-import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
-import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.pose.Pose
-import com.google.mlkit.vision.pose.PoseDetection
-import com.google.mlkit.vision.pose.PoseLandmark
-import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -40,82 +28,35 @@ data class PoseFrame(
     val joints: List<JointSample>
 )
 
+/**
+ * Camera frame analyzer that delegates actual pose inference to a [PoseEngine]
+ * (MediaPipe or ML Kit), swapping engines on the fly when [modelTypeProvider] changes.
+ */
 class PoseTracker(
     private val context: Context,
     private val modelTypeProvider: () -> TrackerModelType = { TrackerModelType.MEDIAPIPE_LITE },
     private val targetFpsProvider: () -> Int = { 60 },
     private val onCheckShouldCaptureBitmap: (() -> Boolean)? = null,
-    private val onFrame: (PoseFrame, Bitmap?, Int) -> Unit
+    private val onFrame: PoseFrameCallback
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
     @Volatile private var lastAnalyzedTimeMs = 0L
 
     private var currentModelType: TrackerModelType? = null
-    private var mediaPipeDetector: PoseLandmarker? = null
-    private var mlKitDetector: com.google.mlkit.vision.pose.PoseDetector? = null
-
-    @Volatile private var activeRawBitmap: Bitmap? = null
-    @Volatile private var activeRotationDegrees: Int = 0
+    private var currentEngine: PoseEngine? = null
 
     private fun ensureEngine(desired: TrackerModelType) {
-        if (currentModelType == desired && mediaPipeDetector != null) return
+        if (currentModelType == desired && currentEngine != null) return
 
-        closeEngines()
-        currentModelType = desired
-
-        when (desired) {
-            TrackerModelType.MEDIAPIPE_LITE, TrackerModelType.MEDIAPIPE_FULL, TrackerModelType.MEDIAPIPE_HEAVY -> {
-                val modelFile = when (desired) {
-                    TrackerModelType.MEDIAPIPE_LITE -> "pose_landmarker_lite.task"
-                    TrackerModelType.MEDIAPIPE_FULL -> "pose_landmarker_full.task"
-                    TrackerModelType.MEDIAPIPE_HEAVY -> "pose_landmarker_heavy.task"
-                    else -> "pose_landmarker_lite.task"
-                }
-
-                try {
-                    val baseOptions = BaseOptions.builder()
-                        .setModelAssetPath(modelFile)
-                        .setDelegate(Delegate.GPU)
-                        .build()
-
-                    val options = PoseLandmarker.PoseLandmarkerOptions.builder()
-                        .setBaseOptions(baseOptions)
-                        .setMinPoseDetectionConfidence(0.5f)
-                        .setMinPosePresenceConfidence(0.5f)
-                        .setMinTrackingConfidence(0.5f)
-                        .setRunningMode(RunningMode.LIVE_STREAM)
-                        .setResultListener { result, _ -> handleMediaPipeResult(result) }
-                        .setErrorListener { _ -> isProcessing.set(false) }
-                        .build()
-
-                    mediaPipeDetector = PoseLandmarker.createFromOptions(context, options)
-                } catch (_: Exception) {
-                    val baseOptions = BaseOptions.builder()
-                        .setModelAssetPath(modelFile)
-                        .setDelegate(Delegate.CPU)
-                        .build()
-
-                    val options = PoseLandmarker.PoseLandmarkerOptions.builder()
-                        .setBaseOptions(baseOptions)
-                        .setMinPoseDetectionConfidence(0.5f)
-                        .setMinPosePresenceConfidence(0.5f)
-                        .setMinTrackingConfidence(0.5f)
-                        .setRunningMode(RunningMode.LIVE_STREAM)
-                        .setResultListener { result, _ -> handleMediaPipeResult(result) }
-                        .setErrorListener { _ -> isProcessing.set(false) }
-                        .build()
-
-                    mediaPipeDetector = PoseLandmarker.createFromOptions(context, options)
-                }
-            }
-            TrackerModelType.MLKIT -> {
-                val options = PoseDetectorOptions.Builder()
-                    .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
-                    .build()
-                mlKitDetector = PoseDetection.getClient(options)
-            }
+        currentEngine?.close()
+        currentEngine = when (desired) {
+            TrackerModelType.MEDIAPIPE_LITE, TrackerModelType.MEDIAPIPE_FULL, TrackerModelType.MEDIAPIPE_HEAVY ->
+                MediaPipeEngine(context, MediaPipeEngine.modelFileFor(desired), onFrame)
+            TrackerModelType.MLKIT ->
+                MlKitEngine(onFrame)
         }
+        currentModelType = desired
     }
 
     @OptIn(ExperimentalGetImage::class)
@@ -146,227 +87,20 @@ class PoseTracker(
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        activeRotationDegrees = rotationDegrees
-
         val shouldCaptureBitmap = onCheckShouldCaptureBitmap?.invoke() ?: false
 
-        if (desiredModel == TrackerModelType.MLKIT) {
-            val mediaImage = imageProxy.image
-            if (mediaImage == null) {
-                isProcessing.set(false)
-                imageProxy.close()
-                return
-            }
-
-            val capturedBitmap = if (shouldCaptureBitmap) {
-                try { imageProxy.toBitmap() } catch (_: Exception) { null }
-            } else null
-
-            val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
-            val isRotated = rotationDegrees == 90 || rotationDegrees == 270
-            val width = if (isRotated) imageProxy.height.toFloat() else imageProxy.width.toFloat()
-            val height = if (isRotated) imageProxy.width.toFloat() else imageProxy.height.toFloat()
-
-            mlKitDetector?.process(image)
-                ?.addOnSuccessListener { pose ->
-                    val frame = convertMlKitPose(pose, width, height)
-                    onFrame(frame, capturedBitmap, rotationDegrees)
-                }
-                ?.addOnFailureListener {
-                    capturedBitmap?.recycle()
-                }
-                ?.addOnCompleteListener {
-                    isProcessing.set(false)
-                    imageProxy.close()
-                }
-        } else {
-            val rawBitmap = try {
-                imageProxy.toBitmap()
-            } catch (_: Exception) {
-                isProcessing.set(false)
-                imageProxy.close()
-                return
-            } finally {
-                imageProxy.close()
-            }
-
-            val configToUse = rawBitmap.config ?: Bitmap.Config.ARGB_8888
-            activeRawBitmap = if (shouldCaptureBitmap) {
-                rawBitmap.copy(configToUse, true)
-            } else null
-
-            val rotatedBitmap = if (rotationDegrees != 0) {
-                val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true).also {
-                    if (it != rawBitmap) rawBitmap.recycle()
-                }
-            } else {
-                rawBitmap
-            }
-
-            // Perform center crop AFTER rotation to guarantee a true 1:1 aspect ratio square input
-            val minDim = minOf(rotatedBitmap.width, rotatedBitmap.height)
-            val startX = (rotatedBitmap.width - minDim) / 2
-            val startY = (rotatedBitmap.height - minDim) / 2
-            val squareBitmap = Bitmap.createBitmap(rotatedBitmap, startX, startY, minDim, minDim).also {
-                if (it != rotatedBitmap) rotatedBitmap.recycle()
-            }
-
-            val mpImage: MPImage = BitmapImageBuilder(squareBitmap).build()
-
-            try {
-                // Call directly on analyzer thread to keep frame execution synchronized
-                mediaPipeDetector?.detectAsync(mpImage, now)
-            } catch (_: Exception) {
-                squareBitmap.recycle()
-                activeRawBitmap?.recycle()
-                activeRawBitmap = null
-                isProcessing.set(false)
-            }
-        }
-    }
-
-    private fun handleMediaPipeResult(result: PoseLandmarkerResult) {
-        try {
-            val poseFrame = convertMediaPipeResult(result)
-            onFrame(poseFrame, activeRawBitmap, activeRotationDegrees)
-        } finally {
-            activeRawBitmap = null
+        currentEngine?.analyze(imageProxy, rotationDegrees, shouldCaptureBitmap, now) {
             isProcessing.set(false)
         }
     }
 
-    private fun convertMediaPipeResult(result: PoseLandmarkerResult): PoseFrame {
-        val joints = mutableListOf<JointSample>()
-        val landmarks = result.landmarks().firstOrNull()
-        val worldLandmarks = result.worldLandmarks().firstOrNull()
-
-        if (landmarks != null) {
-            if (landmarks.isNotEmpty()) {
-                val nose = landmarks[0]
-                val worldNose = worldLandmarks?.getOrNull(0)
-                joints += JointSample(
-                    name = "head",
-                    x = nose.x(),
-                    y = nose.y(),
-                    z = worldNose?.z() ?: (nose.z() * 1000f),
-                    visibility = nose.presence().orElse(0.5f)
-                )
-            }
-
-            for ((index, name) in MEDIAPIPE_LANDMARK_MAPPING) {
-                if (index < landmarks.size) {
-                    val lm = landmarks[index]
-                    val worldLm = worldLandmarks?.getOrNull(index)
-
-                    joints += JointSample(
-                        name = name,
-                        x = lm.x(),
-                        y = lm.y(),
-                        z = (worldLm?.z() ?: lm.z()) * 1000f,
-                        visibility = lm.presence().orElse(0.5f)
-                    )
-                }
-            }
-        }
-
-        return PoseFrame(
-            timestampMs = System.currentTimeMillis(),
-            imageWidth = 480,
-            imageHeight = 480,
-            joints = joints
-        )
-    }
-
-    private fun convertMlKitPose(pose: Pose, width: Float, height: Float): PoseFrame {
-        val joints = mutableListOf<JointSample>()
-        val noseLandmark = pose.getPoseLandmark(PoseLandmark.NOSE)
-        if (noseLandmark != null) {
-            val p2 = noseLandmark.position
-            val p3 = noseLandmark.position3D
-            joints += JointSample(
-                name = "head",
-                x = p2.x / width,
-                y = p2.y / height,
-                z = p3.z,
-                visibility = noseLandmark.inFrameLikelihood
-            )
-        }
-
-        for (landmark in pose.allPoseLandmarks) {
-            val type = landmark.landmarkType
-            if (type in MLKIT_BODY_TYPES) {
-                val p2 = landmark.position
-                val p3 = landmark.position3D
-                joints += JointSample(
-                    name = MLKIT_NAMES[type] ?: "type_$type",
-                    x = p2.x / width,
-                    y = p2.y / height,
-                    z = p3.z,
-                    visibility = landmark.inFrameLikelihood
-                )
-            }
-        }
-
-        return PoseFrame(
-            timestampMs = System.currentTimeMillis(),
-            imageWidth = width.toInt(),
-            imageHeight = height.toInt(),
-            joints = joints
-        )
-    }
-
-    private fun closeEngines() {
-        try { mediaPipeDetector?.close() } catch (_: Exception) {}
-        try { mlKitDetector?.close() } catch (_: Exception) {}
-        mediaPipeDetector = null
-        mlKitDetector = null
-    }
-
     fun close() {
-        closeEngines()
+        currentEngine?.close()
+        currentEngine = null
+        currentModelType = null
     }
 
     companion object {
-        private val MEDIAPIPE_LANDMARK_MAPPING = mapOf(
-            11 to "left_shoulder",
-            12 to "right_shoulder",
-            13 to "left_elbow",
-            14 to "right_elbow",
-            15 to "left_wrist",
-            16 to "right_wrist",
-            23 to "left_hip",
-            24 to "right_hip",
-            25 to "left_knee",
-            26 to "right_knee",
-            27 to "left_ankle",
-            28 to "right_ankle"
-        )
-
-        private val MLKIT_BODY_TYPES = setOf(
-            PoseLandmark.LEFT_SHOULDER, PoseLandmark.RIGHT_SHOULDER,
-            PoseLandmark.LEFT_ELBOW, PoseLandmark.RIGHT_ELBOW,
-            PoseLandmark.LEFT_WRIST, PoseLandmark.RIGHT_WRIST,
-            PoseLandmark.LEFT_HIP, PoseLandmark.RIGHT_HIP,
-            PoseLandmark.LEFT_KNEE, PoseLandmark.RIGHT_KNEE,
-            PoseLandmark.LEFT_ANKLE, PoseLandmark.RIGHT_ANKLE
-        )
-
-        private val MLKIT_NAMES = mapOf(
-            PoseLandmark.LEFT_SHOULDER to "left_shoulder",
-            PoseLandmark.RIGHT_SHOULDER to "right_shoulder",
-            PoseLandmark.LEFT_ELBOW to "left_elbow",
-            PoseLandmark.RIGHT_ELBOW to "right_elbow",
-            PoseLandmark.LEFT_WRIST to "left_wrist",
-            PoseLandmark.RIGHT_WRIST to "right_wrist",
-            PoseLandmark.LEFT_HIP to "left_hip",
-            PoseLandmark.RIGHT_HIP to "right_hip",
-            PoseLandmark.LEFT_KNEE to "left_knee",
-            PoseLandmark.RIGHT_KNEE to "right_knee",
-            PoseLandmark.LEFT_ANKLE to "left_ankle",
-            PoseLandmark.RIGHT_ANKLE to "right_ankle"
-        )
-
         fun renderProcessedWebFrame(
             srcBitmap: Bitmap,
             processedFrame: PoseFrame,
